@@ -1,2 +1,6 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
 manifest_version = 3
 app_id = "blender-connector"
