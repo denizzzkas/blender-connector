@@ -1,0 +1,152 @@
+{
+  "manifest_schema_version": 3,
+  "sdk_version": "5.9.13",
+  "app_id": "blender-connector",
+  "version": "1.0.0",
+  "name": "Blender Connector",
+  "description": "AI 3D Scene Generator for Blender via Imperal Cloud. Generate parametric 3D objects, materials, lighting, and full scenes in Blender using natural language prompts.",
+  "icon": "icon.svg",
+  "actions_explicit": true,
+  "system": false,
+  "capabilities": [
+    "blender-connector:generate",
+    "blender-connector:read"
+  ],
+  "tools": [
+    {
+      "name": "generate_3d_script",
+      "description": "Generate a Python script (using Blender's bpy API) from a natural language prompt to create or modify 3D objects, materials, lights, and scenes in Blender.",
+      "action_type": "write",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {
+          "prompt": {
+            "description": "Description of the 3D scene, object, material, or animation to create in Blender.",
+            "title": "Prompt",
+            "type": "string"
+          },
+          "target_mode": {
+            "default": "new_scene",
+            "description": "Generation mode: 'new_scene' (clears default mesh and builds fresh) or 'modify_active' (modifies current scene/selected object).",
+            "title": "Target Mode",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "Generate3DParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "properties": {
+          "job_id": {
+            "description": "Unique job identifier for tracking execution in Blender",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "status": {
+            "description": "Status of the script generation (queued/pending_blender)",
+            "title": "Status",
+            "type": "string"
+          },
+          "code": {
+            "description": "The generated Blender Python (bpy) script",
+            "title": "Code",
+            "type": "string"
+          },
+          "explanation": {
+            "description": "Summary of what the script creates in 3D",
+            "title": "Explanation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status",
+          "code",
+          "explanation"
+        ],
+        "title": "Generate3DResult",
+        "type": "object"
+      },
+      "event": "",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "blender_connector"
+    },
+    {
+      "name": "get_addon_script",
+      "description": "Get the Python source code of the Imperal Blender Addon to install into Blender (Edit -> Preferences -> Add-ons).",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {},
+        "title": "GetAddonParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "properties": {
+          "filename": {
+            "description": "Suggested filename for saving the addon",
+            "title": "Filename",
+            "type": "string"
+          },
+          "addon_code": {
+            "description": "Full Python source code of the Blender addon",
+            "title": "Addon Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "filename",
+          "addon_code"
+        ],
+        "title": "GetAddonResult",
+        "type": "object"
+      },
+      "event": "",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "blender_connector"
+    }
+  ],
+  "signals": [],
+  "schedules": [],
+  "required_scopes": [],
+  "icon_size_bytes": 220,
+  "lifecycle": {
+    "health_check": {
+      "interval_sec": 60
+    }
+  },
+  "secrets": [],
+  "panels": [
+    {
+      "panel_id": "blender_status",
+      "slot": "left",
+      "title": "Blender Connector",
+      "tree": {},
+      "icon": "Box",
+      "refresh": "manual",
+      "center_overlay": false,
+      "default_width": 320,
+      "min_width": 280
+    },
+    {
+      "panel_id": "blender_studio",
+      "slot": "center",
+      "title": "Blender AI Studio",
+      "tree": {},
+      "icon": "Sparkles",
+      "refresh": "manual",
+      "center_overlay": false
+    }
+  ]
+}
