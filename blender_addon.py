@@ -155,9 +155,8 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
                 props.last_status = f"Executing job {job_id[:8]}..."
                 
                 exec_globals = {"bpy": bpy, "__name__": "__main__"}
-                run_script = getattr(__builtins__, "exec") if isinstance(__builtins__, dict) else getattr(__builtins__, "exec", exec)
                 try:
-                    run_script(code, exec_globals)
+                    exec(code, exec_globals)
                     props.last_status = f"Job {job_id[:8]} executed successfully!"
                     self.report({'INFO'}, f"Imperal 3D script executed: {job_id[:8]}")
                     
