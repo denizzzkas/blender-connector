@@ -18,7 +18,11 @@ async def render_status_panel(ctx) -> ui.UINode:
     """
     Left sidebar panel showing Blender connection status, download button, and step-by-step instructions.
     """
-    user_token = getattr(ctx, 'user_id', 'demo_user') or 'demo_user'
+    user_token = (
+        getattr(ctx, 'user_id', None)
+        or getattr(getattr(ctx, 'user', None), 'imperal_id', None)
+        or 'demo_user'
+    )
     pending_count = len(_JOB_QUEUE.get(user_token, []))
     inspection = get_scene_inspection(user_token)
     sync_time = "Never"
@@ -100,7 +104,11 @@ async def render_studio_panel(ctx) -> ui.UINode:
     """
     Center Studio panel with prompt form, generated code editor, and execution history.
     """
-    user_token = getattr(ctx, 'user_id', 'demo_user') or 'demo_user'
+    user_token = (
+        getattr(ctx, 'user_id', None)
+        or getattr(getattr(ctx, 'user', None), 'imperal_id', None)
+        or 'demo_user'
+    )
     recent_jobs = list(_JOB_STATUSES.items())[-5:]
     history_rows = []
     for j_id, j_data in reversed(recent_jobs):

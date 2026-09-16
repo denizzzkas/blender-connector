@@ -23,7 +23,11 @@ async def handle_generate_3d_script(ctx, params: Generate3DParams) -> ActionResu
     """Action handler for generate_3d_script tool."""
     prompt = params.prompt
     target_mode = params.target_mode
-    user_token = getattr(ctx, "user_id", "demo_user") or "demo_user"
+    user_token = (
+        getattr(ctx, "user_id", None)
+        or getattr(getattr(ctx, "user", None), "imperal_id", None)
+        or "demo_user"
+    )
 
     code, explanation = generate_bpy_code(prompt, target_mode)
     job_id = f"job_{user_token[:6] if user_token else 'demo'}_{hash(prompt) % 10000}"
@@ -57,7 +61,11 @@ async def handle_generate_3d_script(ctx, params: Generate3DParams) -> ActionResu
 )
 async def handle_inspect_active_scene(ctx, params: InspectSceneParams = InspectSceneParams()) -> ActionResult:
     """Action handler for inspect_active_scene tool."""
-    user_token = getattr(ctx, "user_id", "demo_user") or "demo_user"
+    user_token = (
+        getattr(ctx, "user_id", None)
+        or getattr(getattr(ctx, "user", None), "imperal_id", None)
+        or "demo_user"
+    )
     inspection = get_scene_inspection(user_token)
 
     if not inspection:
