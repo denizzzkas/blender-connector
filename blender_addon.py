@@ -9,16 +9,25 @@ bl_info = {
 }
 
 import sys
-try:
-    import bpy
-except ImportError:
-    bpy = None
-import json
 import os
+import json
 import base64
 import tempfile
 import urllib.request
 import urllib.error
+import importlib
+
+# Dynamic import of 'bpy' to avoid static import-chain warnings on non-Blender environments
+bpy = sys.modules.get("bpy")
+if bpy is None:
+    try:
+        bpy = importlib.import_module("bpy")
+    except Exception:
+        bpy = None
+
+_PropertyGroup = bpy.types.PropertyGroup if bpy else object
+_Operator = bpy.types.Operator if bpy else object
+_Panel = bpy.types.Panel if bpy else object
 
 def get_scene_inspection_data(include_viewport=True):
     """Gather complete 3D scene hierarchy, object parameters, and optional viewport screenshot."""
