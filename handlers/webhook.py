@@ -106,8 +106,21 @@ def register_webhook_handlers(ext: Extension):
                 "body": json.dumps({"ok": True, "job_id": job_id, "status": status})
             }
 
-        return {
-            "status_code": 400,
-            "headers": {"Content-Type": "application/json"},
-            "body": json.dumps({"error": f"Unknown action '{action}'"})
-        }
+        elif action == "download":
+            script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "blender_addon.py")
+            if not os.path.exists(script_path):
+                return {
+                    "status_code": 444,
+                    "headers": {"Content-Type": "application/json"},
+                    "body": json.dumps({"error": "blender_addon.py not found on disk"})
+                }
+            with open(script_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return {
+                "status_code": 200,
+                "headers": {
+                    "Content-Type": "text/x-python-script; charset=utf-8",
+                    "Content-Disposition": 'attachment; filename="imperal_blender_connector.py"'
+                },
+                "body": content
+            }

@@ -53,7 +53,7 @@ async def render_status_panel(ctx) -> ui.UINode:
         variant="primary",
         full_width=True,
         icon="Download",
-        on_click=ui.Call("get_addon_script"),
+        on_click=ui.Open(f"/ext/{ext.app_id}/webhook?action=download"),
     )
 
     inspect_button = ui.Button(
@@ -65,14 +65,14 @@ async def render_status_panel(ctx) -> ui.UINode:
     )
 
     instructions_card = ui.Card(
-        title="Инструкция по установке плагина в Blender",
+        title="Plugin Installation Instructions",
         content=ui.Markdown(
             content=(
-                "1. Нажмите кнопку **Download Blender Addon (.py)** выше и сохраните файл `imperal_blender_connector.py`.\n\n"
-                "2. Откройте Blender и перейдите в верхнее меню: **Edit ➔ Preferences ➔ Add-ons**.\n\n"
-                "3. Нажмите кнопку **Install...** в верхнем углу и выберите скачанный файл.\n\n"
-                "4. Поставьте галочку напротив появившегося плагина **Imperal Blender Connector**.\n\n"
-                "5. В 3D-вьюпорте Blender нажмите клавишу **N** (откроется боковая панель справа), выберите вкладку **Imperal** и вставьте ваш **User Token**."
+                "1. Click the **Download Blender Addon (.py)** button above to save `imperal_blender_connector.py`.\n\n"
+                "2. Open Blender and navigate to top menu: **Edit ➔ Preferences ➔ Add-ons**.\n\n"
+                "3. Click **Install...** in the top right corner and select the downloaded file.\n\n"
+                "4. Enable the checkbox for **Imperal Blender Connector**.\n\n"
+                "5. In the Blender 3D Viewport, press **N** to expand the right sidebar, open the **Imperal** tab, and enter your **User Token**."
             )
         ),
     )
@@ -83,7 +83,7 @@ async def render_status_panel(ctx) -> ui.UINode:
         token_card,
         addon_button,
         inspect_button,
-        ui.Divider("Инструкция"),
+        ui.Divider("Instructions"),
         instructions_card,
     ])
 
