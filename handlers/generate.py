@@ -86,6 +86,22 @@ def generate_bpy_code(prompt: str, target_mode: str = "new_scene") -> tuple[str,
         ])
         explanation = "Created a smooth metallic sphere with blue reflection."
         
+    elif "cylinder" in prompt_lower or "tube" in prompt_lower or "pillar" in prompt_lower:
+        code_lines.extend([
+            "bpy.ops.mesh.primitive_cylinder_add(radius=1.0, depth=3.0, location=(0, 0, 1.5))",
+            "cylinder = bpy.context.active_object",
+            "cylinder.name = 'Imperal_Cylinder'",
+            "",
+            "mat = bpy.data.materials.new(name='Cylinder_Material')",
+            "mat.use_nodes = True",
+            "nodes = mat.node_tree.nodes",
+            "bsdf = nodes.get('Principled BSDF')",
+            "if bsdf:",
+            "    bsdf.inputs['Base Color'].default_value = (0.2, 0.8, 0.4, 1.0)",
+            "cylinder.data.materials.append(mat)",
+        ])
+        explanation = "Created a green cylinder at origin."
+        
     elif "city" in prompt_lower or "building" in prompt_lower or "town" in prompt_lower:
         code_lines.extend([
             "# Procedural Grid City Generation",

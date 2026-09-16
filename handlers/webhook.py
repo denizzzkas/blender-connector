@@ -72,6 +72,8 @@ def register_webhook_handlers(ext: Extension):
         elif action == "sync_inspection":
             try:
                 raw_body = getattr(req, 'body', b'')
+                if not raw_body:
+                    raw_body = query.get("data", "")
                 if isinstance(raw_body, bytes):
                     raw_body = raw_body.decode('utf-8')
                 data = json.loads(raw_body) if raw_body else {}
@@ -88,7 +90,7 @@ def register_webhook_handlers(ext: Extension):
                     "body": json.dumps({"error": f"Invalid inspection payload: {str(e)}"})
                 }
 
-        elif action == "report":
+        elif action in ("report", "result"):
             job_id = query.get("job_id", "")
             status = query.get("status", "success")
             error = query.get("error", "")
