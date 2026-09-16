@@ -34,6 +34,17 @@ def register_panels(ext: Extension):
                     "label": "Download Blender Addon (.py)",
                     "action": "get_addon_script",
                     "variant": "primary"
+                },
+                {
+                    "type": "card",
+                    "title": "Инструкция по установке плагина в Blender",
+                    "description": "Пошаговое руководство по подключению плагина в Blender (версии 3.x и 4.x):",
+                    "items": [
+                        {
+                            "type": "text",
+                            "value": "1. Нажмите кнопку **Download Blender Addon (.py)** выше и сохраните файл `imperal_blender_connector.py`.\n2. Откройте Blender и перейдите в верхнее меню: **Edit ➔ Preferences ➔ Add-ons**.\n3. Нажмите кнопку **Install...** в верхнем углу и выберите скачанный файл `imperal_blender_connector.py`.\n4. Поставьте галочку напротив появившегося плагина **Imperal Blender Connector**.\n5. В 3D-вьюпорте Blender нажмите клавишу **N** (откроется панель справа), выберите вкладку **Imperal** и вставьте ваш **User Token**."
+                        }
+                    ]
                 }
             ]
         }
