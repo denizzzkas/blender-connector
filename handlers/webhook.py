@@ -38,7 +38,7 @@ def get_scene_inspection(user_token: str) -> dict:
 
 def register_webhook_handlers(ext: Extension):
     @ext.webhook("/download", method="GET")
-    async def handle_download_webhook(ctx, req):
+    async def handle_download_webhook(ctx, headers=None, body=None, query_params=None, **kwargs):
         """
         Public GET endpoint to download the Blender addon Python script directly.
         """
@@ -62,11 +62,13 @@ def register_webhook_handlers(ext: Extension):
         }
 
     @ext.webhook("/webhook", method="POST")
-    async def handle_blender_webhook(ctx, req):
+    async def handle_blender_webhook(ctx, headers=None, body=None, query_params=None, **kwargs):
         """
         Webhook endpoint called by Blender Addon to poll for jobs, sync scene inspection, and report execution results.
         """
-        query = getattr(req, 'query_params', {})
+        query = query_params or {}
+        if not query and hasattr(headers, "query_params"): # backwards compat if req passed
+            query = getattr(headers, "query_params", {})
         action = query.get("action", "poll")
         token = query.get("token", "")
 
@@ -95,9 +97,7 @@ def register_webhook_handlers(ext: Extension):
 
         elif action == "sync_inspection":
             try:
-                raw_body = getattr(req, 'body', b'')
-                if not raw_body:
-                    raw_body = query.get("data", "")
+                raw_body = body or query.get("data", "")
                 if isinstance(raw_body, bytes):
                     raw_body = raw_body.decode('utf-8')
                 data = json.loads(raw_body) if raw_body else {}
