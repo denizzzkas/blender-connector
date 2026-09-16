@@ -109,6 +109,11 @@ class ImperalConnectorProperties(bpy.types.PropertyGroup):
         default="",
         subtype='PASSWORD'
     )
+    auto_poll: bpy.props.BoolProperty(
+        name="Auto-Poll & Run (Live)",
+        description="Automatically fetch and execute AI 3D scripts every 3 seconds",
+        default=True
+    )
     include_viewport: bpy.props.BoolProperty(
         name="Send Viewport Screenshot",
         description="Attach 3D viewport preview image when syncing scene to Imperal",
@@ -123,6 +128,7 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
     bl_idname = "imperal.check_queue"
     bl_label = "Check & Run Jobs"
     bl_description = "Fetch pending AI scripts from Imperal Cloud and execute in Blender"
+    silent: bpy.props.BoolProperty(default=False)
 
     def execute(self, context):
         props = context.scene.imperal_connector
@@ -131,7 +137,8 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
             server_url += "/"
         user_token = props.user_token.strip()
         if not user_token:
-            self.report({'ERROR'}, "Please enter your Imperal User Token in the N-panel")
+            if not self.silent:
+                self.report({'ERROR'}, "Please enter your Imperal User Token in the N-panel")
             return {'CANCELLED'}
 
         # Auto-attach current scene inspection data to poll request
@@ -171,11 +178,13 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
                     urllib.request.urlopen(report_url, timeout=3)
             else:
                 props.last_status = "No pending jobs in queue."
-                self.report({'INFO'}, "No pending jobs.")
+                if not self.silent:
+                    self.report({'INFO'}, "No pending jobs.")
 
         except Exception as e:
             props.last_status = f"Connection error: {str(e)}"
-            self.report({'WARNING'}, f"Failed to connect to Imperal: {str(e)}")
+            if not self.silent:
+                self.report({'WARNING'}, f"Failed to connect to Imperal: {str(e)}")
 
         return {'FINISHED'}
 
@@ -217,6 +226,20 @@ class IMPERAL_OT_send_inspection(bpy.types.Operator):
 
         return {'FINISHED'}
 
+def imperal_auto_poll_timer():
+    \"\"\"Background timer callback to poll and auto-execute pending AI 3D jobs every 3 seconds.\"\"\"
+    if bpy is None or not hasattr(bpy, "context") or not hasattr(bpy.context, "scene"):
+        return 3.0
+    try:
+        scene = bpy.context.scene
+        if scene and hasattr(scene, "imperal_connector"):
+            props = scene.imperal_connector
+            if getattr(props, "auto_poll", False) and getattr(props, "user_token", ""):
+                bpy.ops.imperal.check_queue(silent=True)
+    except Exception:
+        pass
+    return 3.0
+
 class IMPERAL_PT_panel(bpy.types.Panel):
     bl_label = "Imperal 3D AI"
     bl_idname = "IMPERAL_PT_panel"
@@ -232,6 +255,7 @@ class IMPERAL_PT_panel(bpy.types.Panel):
         box.label(text="Imperal Connection Settings", icon='WORLD')
         box.prop(props, "user_token")
         box.prop(props, "server_url")
+        box.prop(props, "auto_poll")
 
         layout.separator()
         layout.operator("imperal.check_queue", icon='PLAY')
@@ -255,8 +279,16 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.imperal_connector = bpy.props.PointerProperty(type=ImperalConnectorProperties)
+    
+    if bpy and hasattr(bpy, "app") and hasattr(bpy.app, "timers"):
+        if not bpy.app.timers.is_registered(imperal_auto_poll_timer):
+            bpy.app.timers.register(imperal_auto_poll_timer, first_interval=3.0)
 
 def unregister():
+    if bpy and hasattr(bpy, "app") and hasattr(bpy.app, "timers"):
+        if bpy.app.timers.is_registered(imperal_auto_poll_timer):
+            bpy.app.timers.unregister(imperal_auto_poll_timer)
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
     del bpy.types.Scene.imperal_connector
