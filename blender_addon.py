@@ -1,17 +1,88 @@
 bl_info = {
     "name": "Imperal Blender Connector",
     "author": "Imperal Cloud",
-    "version": (1, 0, 0),
+    "version": (1, 1, 0),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > Imperal",
-    "description": "Connects Blender to Imperal Cloud to execute AI-generated 3D Python scripts.",
+    "description": "Connects Blender to Imperal Cloud to execute AI-generated 3D Python scripts with Scene Vision and Inspection.",
     "category": "3D View",
 }
 
 import bpy
 import json
+import os
+import base64
+import tempfile
 import urllib.request
 import urllib.error
+
+def get_scene_inspection_data(include_viewport=True):
+    """Gather complete 3D scene hierarchy, object parameters, and optional viewport screenshot."""
+    scene = bpy.context.scene
+    active_obj = bpy.context.active_object
+    
+    objects_data = []
+    for obj in scene.objects:
+        mats = [slot.material.name for slot in obj.material_slots if slot.material]
+        
+        obj_info = {
+            "name": obj.name,
+            "type": obj.type,
+            "location": [round(v, 3) for v in obj.location],
+            "rotation": [round(v, 3) for v in obj.rotation_euler],
+            "scale": [round(v, 3) for v in obj.scale],
+            "is_selected": obj.select_get(),
+            "is_active": (obj == active_obj),
+            "materials": mats,
+            "visible": obj.visible_get()
+        }
+        
+        if obj.type == 'MESH' and obj.data:
+            obj_info["vertices_count"] = len(obj.data.vertices)
+            obj_info["polygons_count"] = len(obj.data.polygons)
+        elif obj.type == 'LIGHT' and obj.data:
+            obj_info["light_type"] = obj.data.type
+            obj_info["energy"] = obj.data.energy
+        elif obj.type == 'CAMERA' and obj.data:
+            obj_info["focal_length"] = obj.data.lens
+
+        objects_data.append(obj_info)
+
+    inspection = {
+        "scene_name": scene.name,
+        "objects_count": len(objects_data),
+        "active_object": active_obj.name if active_obj else None,
+        "selected_objects": [obj.name for obj in scene.objects if obj.select_get()],
+        "objects": objects_data,
+        "viewport_snapshot": None
+    }
+
+    if include_viewport:
+        try:
+            temp_dir = tempfile.gettempdir()
+            snapshot_path = os.path.join(temp_dir, "imperal_viewport_preview.jpg")
+            
+            # Save original render settings
+            orig_filepath = scene.render.filepath
+            orig_format = scene.render.image_settings.file_format
+            
+            scene.render.filepath = snapshot_path
+            scene.render.image_settings.file_format = 'JPEG'
+            
+            # Fast viewport OpenGL render
+            bpy.ops.render.opengl(write_still=True)
+            
+            # Restore render settings
+            scene.render.filepath = orig_filepath
+            scene.render.image_settings.file_format = orig_format
+            
+            if os.path.exists(snapshot_path):
+                with open(snapshot_path, "rb") as f:
+                    inspection["viewport_snapshot"] = base64.b64encode(f.read()).decode('utf-8')
+        except Exception as e:
+            inspection["viewport_error"] = str(e)
+
+    return inspection
 
 class ImperalConnectorProperties(bpy.types.PropertyGroup):
     server_url: bpy.props.StringProperty(
@@ -25,9 +96,10 @@ class ImperalConnectorProperties(bpy.types.PropertyGroup):
         default="",
         subtype='PASSWORD'
     )
-    is_connected: bpy.props.BoolProperty(
-        name="Connected",
-        default=False
+    include_viewport: bpy.props.BoolProperty(
+        name="Send Viewport Screenshot",
+        description="Attach 3D viewport preview image when syncing scene to Imperal",
+        default=True
     )
     last_status: bpy.props.StringProperty(
         name="Status",
@@ -45,9 +117,16 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
             self.report({'ERROR'}, "Please enter your Imperal User Token in the N-panel")
             return {'CANCELLED'}
 
+        # Auto-attach current scene inspection data to poll request
+        scene_info = get_scene_inspection_data(include_viewport=False)
+        payload = json.dumps({"scene_inspection": scene_info}).encode('utf-8')
+
         url = f"{props.server_url}?action=poll&token={props.user_token}"
         try:
-            req = urllib.request.Request(url, headers={'User-Agent': 'ImperalBlenderAddon/1.0'})
+            req = urllib.request.Request(url, data=payload, headers={
+                'Content-Type': 'application/json',
+                'User-Agent': 'ImperalBlenderAddon/1.1'
+            })
             with urllib.request.urlopen(req, timeout=5) as response:
                 data = json.loads(response.read().decode('utf-8'))
 
@@ -58,14 +137,12 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
                 
                 props.last_status = f"Executing job {job_id[:8]}..."
                 
-                # Execute Python script inside Blender's safe execution context
                 exec_globals = {"bpy": bpy, "__name__": "__main__"}
                 try:
                     exec(code, exec_globals)
                     props.last_status = f"Job {job_id[:8]} executed successfully!"
                     self.report({'INFO'}, f"Imperal 3D script executed: {job_id[:8]}")
                     
-                    # Notify server of success
                     report_url = f"{props.server_url}?action=report&token={props.user_token}&job_id={job_id}&status=success"
                     urllib.request.urlopen(report_url, timeout=3)
                 except Exception as e:
@@ -73,7 +150,6 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
                     props.last_status = f"Error in job {job_id[:8]}: {err_msg}"
                     self.report({'ERROR'}, f"Script error: {err_msg}")
                     
-                    # Notify server of error for auto-fix feedback loop
                     report_url = f"{props.server_url}?action=report&token={props.user_token}&job_id={job_id}&status=error&error={urllib.parse.quote(err_msg)}"
                     urllib.request.urlopen(report_url, timeout=3)
             else:
@@ -83,6 +159,40 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
         except Exception as e:
             props.last_status = f"Connection error: {str(e)}"
             self.report({'WARNING'}, f"Failed to connect to Imperal: {str(e)}")
+
+        return {'FINISHED'}
+
+class IMPERAL_OT_send_inspection(bpy.types.Operator):
+    bl_idname = "imperal.send_inspection"
+    bl_label = "Inspect & Vision Sync"
+    bl_description = "Send full 3D scene structure and viewport screenshot to Imperal AI"
+
+    def execute(self, context):
+        props = context.scene.imperal_connector
+        if not props.user_token:
+            self.report({'ERROR'}, "Please enter your Imperal User Token")
+            return {'CANCELLED'}
+
+        props.last_status = "Capturing scene & viewport..."
+        inspection_data = get_scene_inspection_data(include_viewport=props.include_viewport)
+        payload = json.dumps(inspection_data).encode('utf-8')
+
+        url = f"{props.server_url}?action=inspection&token={props.user_token}"
+        try:
+            req = urllib.request.Request(url, data=payload, headers={
+                'Content-Type': 'application/json',
+                'User-Agent': 'ImperalBlenderAddon/1.1'
+            })
+            with urllib.request.urlopen(req, timeout=10) as response:
+                res_data = json.loads(response.read().decode('utf-8'))
+                if res_data.get("ok"):
+                    props.last_status = "Scene & Vision synced to Imperal!"
+                    self.report({'INFO'}, "Scene structure & 3D vision sent to Webbee!")
+                else:
+                    props.last_status = "Inspection sync error"
+        except Exception as e:
+            props.last_status = f"Sync error: {str(e)}"
+            self.report({'ERROR'}, f"Failed to sync scene: {str(e)}")
 
         return {'FINISHED'}
 
@@ -105,12 +215,18 @@ class IMPERAL_PT_panel(bpy.types.Panel):
         layout.separator()
         layout.operator("imperal.check_queue", icon='PLAY')
         
+        box_vision = layout.box()
+        box_vision.label(text="3D Scene Vision & Inspection", icon='RESTRICT_VIEW_OFF')
+        box_vision.prop(props, "include_viewport")
+        box_vision.operator("imperal.send_inspection", icon='VIEWZOOM')
+
         box_status = layout.box()
         box_status.label(text=f"Status: {props.last_status}", icon='INFO')
 
 classes = (
     ImperalConnectorProperties,
     IMPERAL_OT_check_queue,
+    IMPERAL_OT_send_inspection,
     IMPERAL_PT_panel,
 )
 

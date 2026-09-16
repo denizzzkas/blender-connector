@@ -2,8 +2,8 @@ import pytest
 import os
 import json
 from handlers.generate import generate_bpy_code
-from handlers.webhook import queue_job_for_user, get_job_status, _JOB_QUEUE, _JOB_STATUSES
-from tools import handle_generate_3d_script, handle_get_addon_script
+from handlers.webhook import queue_job_for_user, get_job_status, store_scene_inspection, get_scene_inspection, _JOB_QUEUE, _JOB_STATUSES
+from tools import handle_generate_3d_script, handle_inspect_active_scene, handle_get_addon_script
 
 class DummyContext:
     def __init__(self, user_id="test_user_123"):
@@ -30,8 +30,26 @@ async def test_generate_action():
     assert status["status"] == "pending_blender"
 
 @pytest.mark.asyncio
+async def test_inspect_active_scene():
+    ctx = DummyContext()
+    dummy_scene_data = {
+        "scene_name": "Scene_Test",
+        "objects_count": 2,
+        "active_object": "Imperal_Cube",
+        "objects": [{"name": "Imperal_Cube", "type": "MESH"}],
+        "viewport_snapshot": "base64_sample_jpeg"
+    }
+    store_scene_inspection("test_user_123", dummy_scene_data)
+    
+    res = await handle_inspect_active_scene(ctx, {})
+    assert res["scene_name"] == "Scene_Test"
+    assert res["objects_count"] == 2
+    assert res["viewport_snapshot"] == "base64_sample_jpeg"
+
+@pytest.mark.asyncio
 async def test_get_addon_script():
     ctx = DummyContext()
     res = await handle_get_addon_script(ctx, {})
     assert res["filename"] == "imperal_blender_connector.py"
     assert "bl_info" in res["addon_code"]
+    assert "get_scene_inspection_data" in res["addon_code"]

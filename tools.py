@@ -1,6 +1,6 @@
 import os
 from handlers.generate import generate_bpy_code
-from handlers.webhook import queue_job_for_user
+from handlers.webhook import queue_job_for_user, get_scene_inspection
 
 async def handle_generate_3d_script(ctx, params: dict) -> dict:
     """
@@ -29,6 +29,24 @@ async def handle_generate_3d_script(ctx, params: dict) -> dict:
         "code": code,
         "explanation": explanation
     }
+
+async def handle_inspect_active_scene(ctx, params: dict) -> dict:
+    """
+    Action handler for inspect_active_scene tool.
+    Returns the latest synced Blender 3D scene hierarchy and viewport vision snapshot.
+    """
+    user_token = ctx.user_id if hasattr(ctx, 'user_id') and ctx.user_id else "demo_user"
+    inspection = get_scene_inspection(user_token)
+
+    if not inspection:
+        return {
+            "scene_name": "No active Blender sync",
+            "objects_count": 0,
+            "objects": [],
+            "message": "No scene data received yet. Click 'Sync 3D Scene Vision' in the Blender N-panel."
+        }
+
+    return inspection
 
 async def handle_get_addon_script(ctx, params: dict) -> dict:
     """

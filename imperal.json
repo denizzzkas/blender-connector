@@ -2,9 +2,9 @@
   "manifest_schema_version": 3,
   "sdk_version": "5.9.13",
   "app_id": "blender-connector",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "name": "Blender Connector",
-  "description": "AI 3D Scene Generator for Blender via Imperal Cloud. Generate parametric 3D objects, materials, lighting, and full scenes in Blender using natural language prompts.",
+  "description": "AI 3D Scene Generator and Inspector for Blender via Imperal Cloud. Features 3D scene structure inspection, viewport vision, and natural language bpy generation.",
   "icon": "icon.svg",
   "actions_explicit": true,
   "system": false,
@@ -70,6 +70,54 @@
           "explanation"
         ],
         "title": "Generate3DResult",
+        "type": "object"
+      },
+      "event": "",
+      "background": false,
+      "long_running": false,
+      "scopes": [],
+      "owner_chat_tool": "blender_connector"
+    },
+    {
+      "name": "inspect_active_scene",
+      "description": "Inspect the active 3D scene in Blender: returns the full hierarchy of objects, materials, active selections, camera settings, and viewport vision snapshot.",
+      "action_type": "read",
+      "chain_callable": true,
+      "effects": [],
+      "id_projection": "",
+      "params_schema": {
+        "properties": {},
+        "title": "InspectSceneParams",
+        "type": "object"
+      },
+      "return_schema": {
+        "properties": {
+          "scene_name": {
+            "type": "string"
+          },
+          "objects_count": {
+            "type": "integer"
+          },
+          "active_object": {
+            "type": "string"
+          },
+          "objects": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "viewport_snapshot": {
+            "type": "string",
+            "description": "Base64 encoded JPEG viewport screenshot"
+          }
+        },
+        "required": [
+          "scene_name",
+          "objects_count",
+          "objects"
+        ],
+        "title": "InspectSceneResult",
         "type": "object"
       },
       "event": "",

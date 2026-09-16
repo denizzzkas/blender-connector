@@ -1,5 +1,5 @@
 from imperal_sdk import Extension, ui
-from handlers.webhook import _JOB_STATUSES, _JOB_QUEUE
+from handlers.webhook import _JOB_STATUSES, _JOB_QUEUE, get_scene_inspection
 
 def register_panels(ext: Extension):
     @ext.panel("blender_status")
@@ -9,14 +9,18 @@ def register_panels(ext: Extension):
         """
         user_token = getattr(ctx, 'user_id', 'demo_user') or 'demo_user'
         pending_count = len(_JOB_QUEUE.get(user_token, []))
+        inspection = get_scene_inspection(user_token)
+        sync_time = "Never"
+        if inspection.get("timestamp"):
+            sync_time = "Just now"
 
         return {
             "title": "Blender Connector",
             "components": [
                 {
                     "type": "card",
-                    "title": "Blender Connection Status",
-                    "description": "Install the Imperal Addon in Blender to execute 3D AI scripts directly.",
+                    "title": "Blender Connection & Vision Status",
+                    "description": "Install the Imperal Addon in Blender to execute 3D AI scripts directly and sync 3D scene vision.",
                     "items": [
                         {
                             "type": "badge",
@@ -24,10 +28,21 @@ def register_panels(ext: Extension):
                             "variant": "info" if pending_count > 0 else "neutral"
                         },
                         {
+                            "type": "badge",
+                            "label": f"3D Scene Synced: {inspection.get('objects_count', 0)} objects ({sync_time})",
+                            "variant": "success" if inspection.get("objects_count") else "neutral"
+                        },
+                        {
                             "type": "text",
                             "value": f"Your User Token: **{user_token}** (Enter this token in Blender N-panel)"
                         }
                     ]
+                },
+                {
+                    "type": "button",
+                    "label": "Inspect Active 3D Scene",
+                    "action": "inspect_active_scene",
+                    "variant": "secondary"
                 },
                 {
                     "type": "button",
@@ -54,6 +69,7 @@ def register_panels(ext: Extension):
         """
         Center Studio panel with prompt form, generated code editor, and execution history.
         """
+        user_token = getattr(ctx, 'user_id', 'demo_user') or 'demo_user'
         recent_jobs = list(_JOB_STATUSES.items())[-5:]
         history_items = []
         for j_id, j_data in reversed(recent_jobs):
@@ -63,9 +79,16 @@ def register_panels(ext: Extension):
                 "status": j_data.get("status", "pending")
             })
 
+        inspection = get_scene_inspection(user_token)
+
         return {
             "title": "Blender 3D AI Studio",
             "components": [
+                {
+                    "type": "card",
+                    "title": f"Active Blender 3D Scene: {inspection.get('scene_name', 'Not Synced Yet')}",
+                    "description": f"Objects: {inspection.get('objects_count', 0)} | Active: {inspection.get('active_object', 'None')} | Selected: {', '.join(inspection.get('selected_objects', [])) or 'None'}"
+                },
                 {
                     "type": "form",
                     "title": "Generate 3D Scene / Script",
@@ -73,7 +96,7 @@ def register_panels(ext: Extension):
                     "fields": [
                         {
                             "name": "prompt",
-                            "label": "Describe what you want to build in Blender",
+                            "label": "Describe what you want to build or modify in Blender",
                             "type": "textarea",
                             "placeholder": "e.g. A retro sci-fi computer terminal with glowing neon buttons and metallic shaders"
                         },
