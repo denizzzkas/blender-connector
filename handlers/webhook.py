@@ -61,6 +61,7 @@ def register_webhook_handlers(ext: Extension):
             "body": content
         }
 
+    @ext.webhook("", method="POST")
     @ext.webhook("/webhook", method="POST")
     async def handle_blender_webhook(ctx, headers=None, body=None, query_params=None, **kwargs):
         """
