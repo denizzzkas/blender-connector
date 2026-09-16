@@ -101,7 +101,7 @@ class ImperalConnectorProperties(bpy.types.PropertyGroup):
     server_url: bpy.props.StringProperty(
         name="Server URL",
         description="Imperal Cloud Webhook URL",
-        default="https://panel.imperal.io/v1/ext/blender-connector/webhook",
+        default="https://panel.imperal.io/v1/ext/blender-connector/webhook/",
     )
     user_token: bpy.props.StringProperty(
         name="User Token",
@@ -127,6 +127,8 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
     def execute(self, context):
         props = context.scene.imperal_connector
         server_url = props.server_url.strip()
+        if not server_url.endswith("/"):
+            server_url += "/"
         user_token = props.user_token.strip()
         if not user_token:
             self.report({'ERROR'}, "Please enter your Imperal User Token in the N-panel")
@@ -159,14 +161,14 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
                     props.last_status = f"Job {job_id[:8]} executed successfully!"
                     self.report({'INFO'}, f"Imperal 3D script executed: {job_id[:8]}")
                     
-                    report_url = f"{props.server_url}?action=report&token={props.user_token}&job_id={job_id}&status=success"
+                    report_url = f"{server_url}?action=report&token={user_token}&job_id={job_id}&status=success"
                     urllib.request.urlopen(report_url, timeout=3)
                 except Exception as e:
                     err_msg = str(e)
                     props.last_status = f"Error in job {job_id[:8]}: {err_msg}"
                     self.report({'ERROR'}, f"Script error: {err_msg}")
                     
-                    report_url = f"{props.server_url}?action=report&token={props.user_token}&job_id={job_id}&status=error&error={urllib.parse.quote(err_msg)}"
+                    report_url = f"{server_url}?action=report&token={user_token}&job_id={job_id}&status=error&error={urllib.parse.quote(err_msg)}"
                     urllib.request.urlopen(report_url, timeout=3)
             else:
                 props.last_status = "No pending jobs in queue."
@@ -186,6 +188,8 @@ class IMPERAL_OT_send_inspection(bpy.types.Operator):
     def execute(self, context):
         props = context.scene.imperal_connector
         server_url = props.server_url.strip()
+        if not server_url.endswith("/"):
+            server_url += "/"
         user_token = props.user_token.strip()
         if not user_token:
             self.report({'ERROR'}, "Please enter your Imperal User Token")
