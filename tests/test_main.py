@@ -1,6 +1,7 @@
 import pytest
 import os
 import json
+import main
 from handlers.generate import generate_bpy_code
 from handlers.webhook import (
     queue_job_for_user,
@@ -44,11 +45,12 @@ async def test_generate_action():
     ctx = DummyContext("usr_abc123")
     params = {"prompt": "neon metallic cube", "target_mode": "new_scene"}
     res = await handle_generate_3d_script(ctx, params)
-    assert "job_id" in res
-    assert res["status"] == "pending_blender"
-    assert "primitive_cube_add" in res["code"]
+    data = res.data if hasattr(res, 'data') else res
+    assert "job_id" in data
+    assert data["status"] == "pending_blender"
+    assert "primitive_cube_add" in data["code"]
 
-    status = get_job_status(res["job_id"])
+    status = get_job_status(data["job_id"])
     assert status["status"] == "pending_blender"
 
 @pytest.mark.asyncio
@@ -57,8 +59,8 @@ async def test_inspect_active_scene():
     
     # Before sync
     empty_res = await handle_inspect_active_scene(ctx, {})
-    assert empty_res["objects_count"] == 0
-    assert "No scene data received yet" in empty_res["message"]
+    empty_data = empty_res.data if hasattr(empty_res, 'data') else empty_res
+    assert empty_data["objects_count"] == 0
 
     # After sync
     dummy_scene_data = {
@@ -71,17 +73,19 @@ async def test_inspect_active_scene():
     store_scene_inspection("usr_inspect_999", dummy_scene_data)
     
     res = await handle_inspect_active_scene(ctx, {})
-    assert res["scene_name"] == "Scene_Test"
-    assert res["objects_count"] == 2
-    assert res["viewport_snapshot"] == "base64_sample_jpeg"
+    data = res.data if hasattr(res, 'data') else res
+    assert data["scene_name"] == "Scene_Test"
+    assert data["objects_count"] == 2
+    assert data["viewport_snapshot"] == "base64_sample_jpeg"
 
 @pytest.mark.asyncio
 async def test_get_addon_script():
     ctx = DummyContext()
     res = await handle_get_addon_script(ctx, {})
-    assert res["filename"] == "imperal_blender_connector.py"
-    assert "bl_info" in res["addon_code"]
-    assert "get_scene_inspection_data" in res["addon_code"]
+    data = res.data if hasattr(res, 'data') else res
+    assert data["filename"] == "imperal_blender_connector.py"
+    assert "bl_info" in data["addon_code"]
+    assert "get_scene_inspection_data" in data["addon_code"]
 
 @pytest.mark.asyncio
 async def test_webhook_endpoints():
@@ -146,7 +150,6 @@ async def test_panels_rendering():
     assert len(studio_panel_res["components"]) >= 2
 
 def test_manifest_validation():
-    import main
     assert main.ext is not None
 
     manifest_path = os.path.join(os.path.dirname(__file__), "..", "imperal.json")

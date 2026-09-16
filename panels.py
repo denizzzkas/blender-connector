@@ -1,6 +1,16 @@
 from imperal_sdk import Extension, ui
+from app import ext
 from handlers.webhook import _JOB_STATUSES, _JOB_QUEUE, get_scene_inspection
 
+@ext.panel(
+    "blender_status",
+    slot="left",
+    title="Blender Connector",
+    icon="Box",
+    refresh="manual",
+    default_width=320,
+    min_width=280,
+)
 async def render_status_panel(ctx):
     """
     Left sidebar panel showing Blender connection status and queue overview.
@@ -62,6 +72,7 @@ async def render_status_panel(ctx):
         ]
     }
 
+@ext.panel("blender_studio", slot="center", title="Blender 3D AI Studio")
 async def render_studio_panel(ctx):
     """
     Center Studio panel with prompt form, generated code editor, and execution history.
@@ -120,6 +131,6 @@ async def render_studio_panel(ctx):
         ]
     }
 
-def register_panels(ext: Extension):
-    ext.panel("blender_status")(render_status_panel)
-    ext.panel("blender_studio")(render_studio_panel)
+def register_panels(ext_obj: Extension):
+    # Panels are already decorated with @ext.panel, function kept for compatibility
+    pass

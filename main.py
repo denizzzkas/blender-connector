@@ -26,5 +26,8 @@ for _m in _MODULES_TO_RELOAD:
         del sys.modules[_m]
 
 from app import ext, chat  # noqa: F401
+from handlers.webhook import register_webhook_handlers
 import tools  # noqa: F401
 import panels  # noqa: F401
+
+register_webhook_handlers(ext)
