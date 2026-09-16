@@ -1,2 +1,2 @@
-imperal_sdk>=5.9.0
+imperal_sdk>=5.15.1
 pytest>=8.0.0
