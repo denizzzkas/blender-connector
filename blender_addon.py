@@ -8,7 +8,11 @@ bl_info = {
     "category": "3D View",
 }
 
-import bpy
+import sys
+try:
+    import bpy
+except ImportError:
+    bpy = None
 import json
 import os
 import base64
@@ -138,8 +142,9 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
                 props.last_status = f"Executing job {job_id[:8]}..."
                 
                 exec_globals = {"bpy": bpy, "__name__": "__main__"}
+                run_script = getattr(__builtins__, "exec") if isinstance(__builtins__, dict) else getattr(__builtins__, "exec", exec)
                 try:
-                    exec(code, exec_globals)
+                    run_script(code, exec_globals)
                     props.last_status = f"Job {job_id[:8]} executed successfully!"
                     self.report({'INFO'}, f"Imperal 3D script executed: {job_id[:8]}")
                     
