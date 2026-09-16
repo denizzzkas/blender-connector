@@ -148,12 +148,14 @@ async def test_panels_rendering():
     ctx = DummyContext("test_user_123")
     
     status_panel_res = await render_status_panel(ctx)
-    assert status_panel_res["title"] == "Blender Connector"
-    assert len(status_panel_res["components"]) >= 3
+    status_dict = status_panel_res.to_dict()
+    assert status_dict["type"] == "Stack"
+    assert len(status_dict["props"]["children"]) >= 4
 
     studio_panel_res = await render_studio_panel(ctx)
-    assert studio_panel_res["title"] == "Blender 3D AI Studio"
-    assert len(studio_panel_res["components"]) >= 2
+    studio_dict = studio_panel_res.to_dict()
+    assert studio_dict["type"] == "Stack"
+    assert len(studio_dict["props"]["children"]) >= 2
 
 def test_manifest_validation():
     assert main.ext is not None
