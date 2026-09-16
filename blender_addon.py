@@ -126,7 +126,9 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
 
     def execute(self, context):
         props = context.scene.imperal_connector
-        if not props.user_token:
+        server_url = props.server_url.strip()
+        user_token = props.user_token.strip()
+        if not user_token:
             self.report({'ERROR'}, "Please enter your Imperal User Token in the N-panel")
             return {'CANCELLED'}
 
@@ -134,7 +136,7 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
         scene_info = get_scene_inspection_data(include_viewport=False)
         payload = json.dumps({"scene_inspection": scene_info}).encode('utf-8')
 
-        url = f"{props.server_url}?action=poll&token={props.user_token}"
+        url = f"{server_url}?action=poll&token={user_token}"
         try:
             req = urllib.request.Request(url, data=payload, headers={
                 'Content-Type': 'application/json',
@@ -183,7 +185,9 @@ class IMPERAL_OT_send_inspection(bpy.types.Operator):
 
     def execute(self, context):
         props = context.scene.imperal_connector
-        if not props.user_token:
+        server_url = props.server_url.strip()
+        user_token = props.user_token.strip()
+        if not user_token:
             self.report({'ERROR'}, "Please enter your Imperal User Token")
             return {'CANCELLED'}
 
@@ -191,7 +195,7 @@ class IMPERAL_OT_send_inspection(bpy.types.Operator):
         inspection_data = get_scene_inspection_data(include_viewport=props.include_viewport)
         payload = json.dumps(inspection_data).encode('utf-8')
 
-        url = f"{props.server_url}?action=inspection&token={props.user_token}"
+        url = f"{server_url}?action=sync_inspection&token={user_token}"
         try:
             req = urllib.request.Request(url, data=payload, headers={
                 'Content-Type': 'application/json',
