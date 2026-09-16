@@ -227,7 +227,7 @@ class IMPERAL_OT_send_inspection(bpy.types.Operator):
         return {'FINISHED'}
 
 def imperal_auto_poll_timer():
-    \"\"\"Background timer callback to poll and auto-execute pending AI 3D jobs every 3 seconds.\"\"\"
+    """Background timer callback to poll and auto-execute pending AI 3D jobs every 3 seconds."""
     if bpy is None or not hasattr(bpy, "context") or not hasattr(bpy.context, "scene"):
         return 3.0
     try:
