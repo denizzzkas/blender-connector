@@ -146,6 +146,9 @@ async def test_panels_rendering():
     assert len(studio_panel_res["components"]) >= 2
 
 def test_manifest_validation():
+    import main
+    assert main.ext is not None
+
     manifest_path = os.path.join(os.path.dirname(__file__), "..", "imperal.json")
     with open(manifest_path, "r", encoding="utf-8") as f:
         data = json.load(f)
