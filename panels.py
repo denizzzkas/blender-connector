@@ -48,12 +48,19 @@ async def render_status_panel(ctx) -> ui.UINode:
         ]),
     )
 
+    addon_url = f"https://panel.imperal.io/v1/ext/{ext.app_id}/webhook/download"
+    if hasattr(ctx, "webhook_url"):
+        try:
+            addon_url = ctx.webhook_url("/download")
+        except Exception:
+            pass
+
     addon_button = ui.Button(
         label="Download Blender Addon (.py)",
         variant="primary",
         full_width=True,
         icon="Download",
-        on_click=ui.Open(f"/ext/{ext.app_id}/webhook?action=download"),
+        on_click=ui.Open(addon_url),
     )
 
     inspect_button = ui.Button(

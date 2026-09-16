@@ -37,7 +37,31 @@ def get_scene_inspection(user_token: str) -> dict:
     return _USER_SCENE_INSPECTION.get(user_token, {})
 
 def register_webhook_handlers(ext: Extension):
-    @ext.webhook("/webhook")
+    @ext.webhook("/download", method="GET")
+    async def handle_download_webhook(ctx, req):
+        """
+        Public GET endpoint to download the Blender addon Python script directly.
+        """
+        import os
+        script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "blender_addon.py")
+        if not os.path.exists(script_path):
+            return {
+                "status_code": 404,
+                "headers": {"Content-Type": "application/json"},
+                "body": json.dumps({"error": "blender_addon.py not found on disk"})
+            }
+        with open(script_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        return {
+            "status_code": 200,
+            "headers": {
+                "Content-Type": "text/x-python-script; charset=utf-8",
+                "Content-Disposition": 'attachment; filename="imperal_blender_connector.py"'
+            },
+            "body": content
+        }
+
+    @ext.webhook("/webhook", method="POST")
     async def handle_blender_webhook(ctx, req):
         """
         Webhook endpoint called by Blender Addon to poll for jobs, sync scene inspection, and report execution results.
