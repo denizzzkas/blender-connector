@@ -12,6 +12,7 @@ from handlers.webhook import (
     _JOB_STATUSES
 )
 from tools import handle_generate_3d_script, handle_inspect_active_scene, handle_get_addon_script
+from models import Generate3DParams, InspectSceneParams, GetAddonParams
 from panels import render_status_panel, render_studio_panel
 from app import ext
 
@@ -43,14 +44,14 @@ async def test_generate_bpy_code_primitives():
 @pytest.mark.asyncio
 async def test_generate_action():
     ctx = DummyContext("usr_abc123")
-    params = {"prompt": "neon metallic cube", "target_mode": "new_scene"}
+    params = Generate3DParams(prompt="neon metallic cube", target_mode="new_scene")
     res = await handle_generate_3d_script(ctx, params)
-    data = res.data if hasattr(res, 'data') else res
-    assert "job_id" in data
-    assert data["status"] == "pending_blender"
-    assert "primitive_cube_add" in data["code"]
+    data = res.data
+    assert data.job_id is not None
+    assert data.status == "pending_blender"
+    assert "primitive_cube_add" in data.code
 
-    status = get_job_status(data["job_id"])
+    status = get_job_status(data.job_id)
     assert status["status"] == "pending_blender"
 
 @pytest.mark.asyncio
@@ -58,34 +59,34 @@ async def test_inspect_active_scene():
     ctx = DummyContext("usr_inspect_999")
     
     # Before sync
-    empty_res = await handle_inspect_active_scene(ctx, {})
-    empty_data = empty_res.data if hasattr(empty_res, 'data') else empty_res
-    assert empty_data["objects_count"] == 0
+    empty_res = await handle_inspect_active_scene(ctx, InspectSceneParams())
+    empty_data = empty_res.data
+    assert empty_data.objects_count == 0
 
     # After sync
     dummy_scene_data = {
         "scene_name": "Scene_Test",
         "objects_count": 2,
-        "active_object": "Imperal_Cube",
-        "objects": [{"name": "Imperal_Cube", "type": "MESH"}],
+        "active_object": "Cube",
+        "selected_objects": ["Cube"],
         "viewport_snapshot": "base64_sample_jpeg"
     }
     store_scene_inspection("usr_inspect_999", dummy_scene_data)
     
-    res = await handle_inspect_active_scene(ctx, {})
-    data = res.data if hasattr(res, 'data') else res
-    assert data["scene_name"] == "Scene_Test"
-    assert data["objects_count"] == 2
-    assert data["viewport_snapshot"] == "base64_sample_jpeg"
+    res = await handle_inspect_active_scene(ctx, InspectSceneParams())
+    data = res.data
+    assert data.scene_name == "Scene_Test"
+    assert data.objects_count == 2
+    assert data.viewport_snapshot == "base64_sample_jpeg"
 
 @pytest.mark.asyncio
 async def test_get_addon_script():
     ctx = DummyContext()
-    res = await handle_get_addon_script(ctx, {})
-    data = res.data if hasattr(res, 'data') else res
-    assert data["filename"] == "imperal_blender_connector.py"
-    assert "bl_info" in data["addon_code"]
-    assert "get_scene_inspection_data" in data["addon_code"]
+    res = await handle_get_addon_script(ctx, GetAddonParams())
+    data = res.data
+    assert data.filename == "imperal_blender_connector.py"
+    assert "bl_info" in data.addon_code
+    assert "get_scene_inspection_data" in data.addon_code
 
 @pytest.mark.asyncio
 async def test_webhook_endpoints():
@@ -129,8 +130,13 @@ async def test_webhook_endpoints():
     assert inspection["scene_name"] == "SyncedScene"
     assert inspection["objects_count"] == 5
 
-    # Report result webhook
-    req_result = DummyRequest({"action": "result", "token": "tok_123", "job_id": "job_001", "status": "completed"})
+    # Report execution result webhook
+    req_result = DummyRequest({
+        "action": "result",
+        "token": "tok_123",
+        "job_id": "job_001",
+        "status": "completed"
+    })
     res_res = await webhook_fn(ctx, req_result)
     assert res_res["status_code"] == 200
 
