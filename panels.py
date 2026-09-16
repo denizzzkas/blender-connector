@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from imperal_sdk import Extension, ui
 from app import ext
 from handlers.webhook import _JOB_STATUSES, _JOB_QUEUE, get_scene_inspection
