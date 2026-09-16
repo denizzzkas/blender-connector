@@ -78,9 +78,12 @@ def get_scene_inspection_data(include_viewport=True):
             # Save original render settings
             orig_filepath = scene.render.filepath
             orig_format = scene.render.image_settings.file_format
+            orig_pct = scene.render.resolution_percentage
             
             scene.render.filepath = snapshot_path
             scene.render.image_settings.file_format = 'JPEG'
+            scene.render.image_settings.quality = 60
+            scene.render.resolution_percentage = 30
             
             # Fast viewport OpenGL render
             bpy.ops.render.opengl(write_still=True)
@@ -88,6 +91,7 @@ def get_scene_inspection_data(include_viewport=True):
             # Restore render settings
             scene.render.filepath = orig_filepath
             scene.render.image_settings.file_format = orig_format
+            scene.render.resolution_percentage = orig_pct
             
             if os.path.exists(snapshot_path):
                 with open(snapshot_path, "rb") as f:
@@ -213,7 +217,7 @@ class IMPERAL_OT_send_inspection(bpy.types.Operator):
                 'Content-Type': 'application/json',
                 'User-Agent': 'ImperalBlenderAddon/1.1'
             })
-            with urllib.request.urlopen(req, timeout=10) as response:
+            with urllib.request.urlopen(req, timeout=20) as response:
                 res_data = json.loads(response.read().decode('utf-8'))
                 if res_data.get("ok"):
                     props.last_status = "Scene & Vision synced to Imperal!"
