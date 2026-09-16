@@ -71,7 +71,7 @@ def register_webhook_handlers(ext: Extension):
         if not query and hasattr(headers, "query_params"): # backwards compat if req passed
             query = getattr(headers, "query_params", {})
         action = query.get("action", "poll")
-        token = query.get("token", "")
+        token = query.get("token", "").strip()
 
         if not token:
             return {
@@ -101,7 +101,12 @@ def register_webhook_handlers(ext: Extension):
                 raw_body = body or query.get("data", "")
                 if isinstance(raw_body, bytes):
                     raw_body = raw_body.decode('utf-8')
-                data = json.loads(raw_body) if raw_body else {}
+                if isinstance(raw_body, dict):
+                    data = raw_body
+                elif isinstance(raw_body, str) and raw_body.strip():
+                    data = json.loads(raw_body)
+                else:
+                    data = {}
                 store_scene_inspection(token, data)
                 return {
                     "status_code": 200,
