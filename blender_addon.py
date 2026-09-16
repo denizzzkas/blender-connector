@@ -101,7 +101,7 @@ class ImperalConnectorProperties(bpy.types.PropertyGroup):
     server_url: bpy.props.StringProperty(
         name="Server URL",
         description="Imperal Cloud Webhook URL",
-        default="https://api.imperal.io/ext/blender-connector/webhook",
+        default="https://panel.imperal.io/v1/ext/blender-connector/webhook",
     )
     user_token: bpy.props.StringProperty(
         name="User Token",
