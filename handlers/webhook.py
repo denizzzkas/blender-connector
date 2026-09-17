@@ -81,6 +81,21 @@ def register_webhook_handlers(ext: Extension):
             }
 
         if action == "poll":
+            try:
+                raw_body = body or query.get("data", "")
+                if isinstance(raw_body, bytes):
+                    raw_body = raw_body.decode('utf-8')
+                if isinstance(raw_body, dict):
+                    data = raw_body
+                elif isinstance(raw_body, str) and raw_body.strip():
+                    data = json.loads(raw_body)
+                else:
+                    data = {}
+                if isinstance(data, dict) and "scene_inspection" in data:
+                    store_scene_inspection(token, data["scene_inspection"])
+            except Exception:
+                pass
+
             user_jobs = _JOB_QUEUE.get(token, [])
             if user_jobs:
                 job = user_jobs.pop(0) # Pop oldest job
