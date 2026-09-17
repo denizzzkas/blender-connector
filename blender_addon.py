@@ -125,13 +125,15 @@ class IMPERAL_OT_check_queue(bpy.types.Operator if bpy else object):
                     props.last_status = f"Job {job_id[:8]} executed successfully!"
                     if not self.silent: self.report({'INFO'}, f"Imperal 3D script executed: {job_id[:8]}")
                     report_url = f"{server_url}?action=report&token={user_token}&job_id={job_id}&status=success"
-                    urllib.request.urlopen(report_url, timeout=5)
+                    req_rep = urllib.request.Request(report_url, data=b"{}", headers={'Content-Type': 'application/json', 'User-Agent': 'ImperalBlenderAddon/1.1'})
+                    urllib.request.urlopen(req_rep, timeout=10)
                 except Exception as e:
                     err_msg = str(e)
                     props.last_status = f"Error in job {job_id[:8]}: {err_msg}"
                     if not self.silent: self.report({'ERROR'}, f"Script error: {err_msg}")
                     report_url = f"{server_url}?action=report&token={user_token}&job_id={job_id}&status=error&error={urllib.parse.quote(err_msg)}"
-                    urllib.request.urlopen(report_url, timeout=5)
+                    req_rep = urllib.request.Request(report_url, data=b"{}", headers={'Content-Type': 'application/json', 'User-Agent': 'ImperalBlenderAddon/1.1'})
+                    urllib.request.urlopen(req_rep, timeout=10)
             else:
                 props.last_status = "No pending jobs in queue."
                 if not self.silent: self.report({'INFO'}, "No pending jobs.")

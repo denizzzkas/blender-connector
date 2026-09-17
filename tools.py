@@ -68,25 +68,16 @@ async def handle_inspect_active_scene(ctx, params: InspectSceneParams = InspectS
         or "demo_user"
     )
 
-    # Queue an on-demand inspection request job for Blender so the next poll captures fresh scene
-    job_id = f"inspect_{user_token[:6] if user_token else 'demo'}_{int(time.time()) % 10000}"
-    await queue_job_for_user(user_token, {
-        "job_id": job_id,
-        "type": "inspect_scene",
-        "code": "imperal_request_inspection()",
-        "explanation": "On-demand scene inspection request from Webbee"
-    }, ctx)
-
     inspection = await get_scene_inspection(user_token, ctx)
 
-    if not inspection:
+    if not inspection or not inspection.get("timestamp"):
         res = InspectSceneResult(
-            scene_name="Requesting Blender scene sync...",
+            scene_name="No scene synced yet",
             objects_count=0,
             objects=[],
-            message="On-demand scene inspection requested. Ensure Blender addon Auto-Poll is ON.",
+            message="No scene inspection received yet. In Blender N-panel, click 'Inspect & Vision Sync' or enable 'Auto-Poll & Run'.",
         )
-        return ActionResult.success(data=res, summary="Requested scene sync from Blender.")
+        return ActionResult.success(data=res, summary="No scene synced from Blender yet.")
 
     res = InspectSceneResult(
         scene_name=inspection.get("scene_name", "Scene"),
