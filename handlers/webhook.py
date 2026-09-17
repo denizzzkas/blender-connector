@@ -140,8 +140,25 @@ def register_webhook_handlers(ext: Extension):
 
             user_jobs = _JOB_QUEUE.get(token, [])
             if user_jobs:
-                job = user_jobs.pop(0) # Pop oldest job
+                job = user_jobs.pop(0) # Pop latest job
+                _JOB_QUEUE[token] = [] # Clear memory queue so it doesn't re-run
                 _JOB_STATUSES[job["job_id"]]["status"] = "executing_in_blender"
+                
+                # Also clean up DB pending jobs for this user so DB polling won't re-run old jobs
+                if ctx and hasattr(ctx, "store") and ctx.store:
+                    try:
+                        store = ctx.store.for_user(token) if hasattr(ctx.store, "for_user") else ctx.store
+                        page = await store.query(BLENDER_JOBS_COLLECTION, where={"status": "pending"})
+                        if page and getattr(page, "data", None):
+                            for doc in page.data:
+                                doc_job_id = getattr(doc, "data", {}).get("job_id") if hasattr(doc, "data") else doc.get("job_id")
+                                if doc_job_id != job["job_id"]:
+                                    await store.update(BLENDER_JOBS_COLLECTION, doc.id, {"status": "superseded"})
+                                else:
+                                    await store.update(BLENDER_JOBS_COLLECTION, doc.id, {"status": "executing_in_blender"})
+                    except Exception:
+                        pass
+
                 return {
                     "status_code": 200,
                     "headers": {"Content-Type": "application/json"},
@@ -153,9 +170,14 @@ def register_webhook_handlers(ext: Extension):
                     store = ctx.store.for_user(token) if hasattr(ctx.store, "for_user") else ctx.store
                     page = await store.query(BLENDER_JOBS_COLLECTION, where={"status": "pending"})
                     if page and getattr(page, "data", None) and len(page.data) > 0:
-                        doc = page.data[0]
-                        doc_id = doc.id
-                        job = doc.data if hasattr(doc, "data") else (doc.to_dict() if hasattr(doc, "to_dict") else dict(doc))
+                        # Grab the latest pending job and mark all older ones as superseded
+                        docs = page.data
+                        latest_doc = docs[-1]
+                        for doc in docs[:-1]:
+                            await store.update(BLENDER_JOBS_COLLECTION, doc.id, {"status": "superseded"})
+                        
+                        doc_id = latest_doc.id
+                        job = latest_doc.data if hasattr(latest_doc, "data") else (latest_doc.to_dict() if hasattr(latest_doc, "to_dict") else dict(latest_doc))
                         await store.update(BLENDER_JOBS_COLLECTION, doc_id, {"status": "executing_in_blender"})
                         _JOB_STATUSES[job.get("job_id", "")] = {"status": "executing_in_blender"}
                         return {
