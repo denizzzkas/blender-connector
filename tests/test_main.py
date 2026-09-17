@@ -71,7 +71,7 @@ async def test_inspect_active_scene():
         "selected_objects": ["Cube"],
         "viewport_snapshot": "base64_sample_jpeg"
     }
-    store_scene_inspection("usr_inspect_999", dummy_scene_data)
+    await store_scene_inspection("usr_inspect_999", dummy_scene_data)
     
     res = await handle_inspect_active_scene(ctx, InspectSceneParams())
     data = res.data
@@ -126,7 +126,7 @@ async def test_webhook_endpoints():
     res_sync = await webhook_fn(ctx, req_sync)
     assert res_sync["status_code"] == 200
 
-    inspection = get_scene_inspection("tok_123")
+    inspection = await get_scene_inspection("tok_123")
     assert inspection["scene_name"] == "SyncedScene"
     assert inspection["objects_count"] == 5
 

@@ -7,6 +7,7 @@ from imperal_sdk import Extension
 _JOB_QUEUE = {}
 _JOB_STATUSES = {}
 _USER_SCENE_INSPECTION = {}
+BLENDER_SCENE_COLLECTION = "blender_scenes"
 
 def queue_job_for_user(user_token: str, job_data: dict):
     if user_token not in _JOB_QUEUE:
@@ -22,8 +23,8 @@ def queue_job_for_user(user_token: str, job_data: dict):
 def get_job_status(job_id: str) -> dict:
     return _JOB_STATUSES.get(job_id, {"status": "unknown"})
 
-def store_scene_inspection(user_token: str, data: dict):
-    _USER_SCENE_INSPECTION[user_token] = {
+async def store_scene_inspection(user_token: str, data: dict, ctx=None):
+    inspection_record = {
         "timestamp": time.time(),
         "scene_name": data.get("scene_name", "Scene"),
         "objects_count": data.get("objects_count", 0),
@@ -32,8 +33,37 @@ def store_scene_inspection(user_token: str, data: dict):
         "objects": data.get("objects", []),
         "viewport_snapshot": data.get("viewport_snapshot")
     }
+    _USER_SCENE_INSPECTION[user_token] = inspection_record
 
-def get_scene_inspection(user_token: str) -> dict:
+    if ctx and hasattr(ctx, "store") and ctx.store:
+        try:
+            record_with_user = dict(inspection_record)
+            record_with_user["user_token"] = user_token
+            # Try to query existing record for user_token
+            page = await ctx.store.query(BLENDER_SCENE_COLLECTION, where={"user_token": user_token})
+            if page and getattr(page, "data", None) and len(page.data) > 0:
+                doc_id = page.data[0].id
+                await ctx.store.update(BLENDER_SCENE_COLLECTION, doc_id, record_with_user)
+            else:
+                await ctx.store.create(BLENDER_SCENE_COLLECTION, record_with_user)
+        except Exception:
+            pass
+
+async def get_scene_inspection(user_token: str, ctx=None) -> dict:
+    if user_token in _USER_SCENE_INSPECTION:
+        return _USER_SCENE_INSPECTION[user_token]
+
+    if ctx and hasattr(ctx, "store") and ctx.store:
+        try:
+            page = await ctx.store.query(BLENDER_SCENE_COLLECTION, where={"user_token": user_token})
+            if page and getattr(page, "data", None) and len(page.data) > 0:
+                rec = page.data[0]
+                rec_dict = rec.to_dict() if hasattr(rec, "to_dict") else dict(rec)
+                _USER_SCENE_INSPECTION[user_token] = rec_dict
+                return rec_dict
+        except Exception:
+            pass
+
     return _USER_SCENE_INSPECTION.get(user_token, {})
 
 def register_webhook_handlers(ext: Extension):
@@ -92,7 +122,7 @@ def register_webhook_handlers(ext: Extension):
                 else:
                     data = {}
                 if isinstance(data, dict) and "scene_inspection" in data:
-                    store_scene_inspection(token, data["scene_inspection"])
+                    await store_scene_inspection(token, data["scene_inspection"], ctx)
             except Exception:
                 pass
 
@@ -122,7 +152,7 @@ def register_webhook_handlers(ext: Extension):
                     data = json.loads(raw_body)
                 else:
                     data = {}
-                store_scene_inspection(token, data)
+                await store_scene_inspection(token, data, ctx)
                 return {
                     "status_code": 200,
                     "headers": {"Content-Type": "application/json"},

@@ -1,4 +1,5 @@
 import os
+import time
 from imperal_sdk import ActionResult
 from app import chat
 from handlers.generate import generate_bpy_code
@@ -66,16 +67,26 @@ async def handle_inspect_active_scene(ctx, params: InspectSceneParams = InspectS
         or getattr(getattr(ctx, "user", None), "imperal_id", None)
         or "demo_user"
     )
-    inspection = get_scene_inspection(user_token)
+
+    # Queue an on-demand inspection request job for Blender so the next poll captures fresh scene
+    job_id = f"inspect_{user_token[:6] if user_token else 'demo'}_{int(time.time()) % 10000}"
+    queue_job_for_user(user_token, {
+        "job_id": job_id,
+        "type": "inspect_scene",
+        "code": "imperal_request_inspection()",
+        "explanation": "On-demand scene inspection request from Webbee"
+    })
+
+    inspection = await get_scene_inspection(user_token, ctx)
 
     if not inspection:
         res = InspectSceneResult(
-            scene_name="No active Blender sync",
+            scene_name="Requesting Blender scene sync...",
             objects_count=0,
             objects=[],
-            message="No scene data received yet. Click 'Sync 3D Scene Vision' in the Blender N-panel.",
+            message="On-demand scene inspection requested. Ensure Blender addon Auto-Poll is ON.",
         )
-        return ActionResult.success(data=res, summary="No active Blender scene sync found.")
+        return ActionResult.success(data=res, summary="Requested scene sync from Blender.")
 
     res = InspectSceneResult(
         scene_name=inspection.get("scene_name", "Scene"),

@@ -24,7 +24,7 @@ async def render_status_panel(ctx) -> ui.UINode:
         or 'demo_user'
     )
     pending_count = len(_JOB_QUEUE.get(user_token, []))
-    inspection = get_scene_inspection(user_token)
+    inspection = await get_scene_inspection(user_token, ctx)
     sync_time = "Never"
     if inspection.get("timestamp"):
         sync_time = "Just now"
@@ -118,7 +118,7 @@ async def render_studio_panel(ctx) -> ui.UINode:
             "status": j_data.get("status", "pending"),
         })
 
-    inspection = get_scene_inspection(user_token)
+    inspection = await get_scene_inspection(user_token, ctx)
 
     scene_card = ui.Card(
         title=f"Active Scene: {inspection.get('scene_name', 'Not Synced Yet')}",

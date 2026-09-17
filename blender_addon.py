@@ -128,6 +128,11 @@ class ImperalConnectorProperties(bpy.types.PropertyGroup):
         default="Idle"
     )
 
+def imperal_request_inspection():
+    """Helper function exposed to exec() when an on-demand scene inspection job is received."""
+    if bpy and hasattr(bpy, "ops") and hasattr(bpy.ops, "imperal"):
+        bpy.ops.imperal.send_inspection()
+
 class IMPERAL_OT_check_queue(bpy.types.Operator):
     bl_idname = "imperal.check_queue"
     bl_label = "Check & Run Jobs"
@@ -145,7 +150,7 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
                 self.report({'ERROR'}, "Please enter your Imperal User Token in the N-panel")
             return {'CANCELLED'}
 
-        # Auto-attach current scene inspection data to poll request
+        # Auto-attach lightweight scene inspection data (no viewport snapshot) to poll request
         scene_info = get_scene_inspection_data(include_viewport=False)
         payload = json.dumps({"scene_inspection": scene_info}).encode('utf-8')
 
@@ -165,18 +170,24 @@ class IMPERAL_OT_check_queue(bpy.types.Operator):
                 
                 props.last_status = f"Executing job {job_id[:8]}..."
                 
-                exec_globals = {"bpy": bpy, "__name__": "__main__"}
+                exec_globals = {
+                    "bpy": bpy,
+                    "imperal_request_inspection": imperal_request_inspection,
+                    "__name__": "__main__"
+                }
                 try:
                     exec(code, exec_globals)
                     props.last_status = f"Job {job_id[:8]} executed successfully!"
-                    self.report({'INFO'}, f"Imperal 3D script executed: {job_id[:8]}")
+                    if not self.silent:
+                        self.report({'INFO'}, f"Imperal 3D script executed: {job_id[:8]}")
                     
                     report_url = f"{server_url}?action=report&token={user_token}&job_id={job_id}&status=success"
                     urllib.request.urlopen(report_url, timeout=3)
                 except Exception as e:
                     err_msg = str(e)
                     props.last_status = f"Error in job {job_id[:8]}: {err_msg}"
-                    self.report({'ERROR'}, f"Script error: {err_msg}")
+                    if not self.silent:
+                        self.report({'ERROR'}, f"Script error: {err_msg}")
                     
                     report_url = f"{server_url}?action=report&token={user_token}&job_id={job_id}&status=error&error={urllib.parse.quote(err_msg)}"
                     urllib.request.urlopen(report_url, timeout=3)
