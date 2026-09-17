@@ -120,15 +120,26 @@ async def render_studio_panel(ctx) -> ui.UINode:
 
     inspection = await get_scene_inspection(user_token, ctx)
 
+    viewport_snapshot = inspection.get("viewport_snapshot")
+    viewport_widget = (
+        ui.Image(src=viewport_snapshot, alt="3D Viewport Preview", width="100%", caption="3D Viewport Live Sync")
+        if viewport_snapshot
+        else ui.Text(content="*No viewport screenshot synced yet. Enable 'Send Viewport Screenshot' in Blender N-panel.*", variant="caption")
+    )
+
     scene_card = ui.Card(
-        title=f"Active Scene: {inspection.get('scene_name', 'Not Synced Yet')}",
-        content=ui.Text(
-            content=(
-                f"Objects: {inspection.get('objects_count', 0)} | "
-                f"Active: {inspection.get('active_object', 'None')} | "
-                f"Selected: {', '.join(inspection.get('selected_objects', [])) or 'None'}"
-            )
-        ),
+        title=f"Active Scene Vision: {inspection.get('scene_name', 'Not Synced Yet')}",
+        content=ui.Stack([
+            ui.Text(
+                content=(
+                    f"**Objects:** {inspection.get('objects_count', 0)} | "
+                    f"**Active:** {inspection.get('active_object', 'None')} | "
+                    f"**Selected:** {', '.join(inspection.get('selected_objects', [])) or 'None'}"
+                ),
+                variant="body",
+            ),
+            viewport_widget,
+        ]),
     )
 
     history_table = ui.DataTable(

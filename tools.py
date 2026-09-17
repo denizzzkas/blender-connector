@@ -1,5 +1,6 @@
 import os
 import time
+import uuid
 from imperal_sdk import ActionResult
 from app import chat
 from handlers.generate import generate_bpy_code
@@ -31,7 +32,7 @@ async def handle_generate_3d_script(ctx, params: Generate3DParams) -> ActionResu
     )
 
     code, explanation = generate_bpy_code(prompt, target_mode)
-    job_id = f"job_{user_token[:6] if user_token else 'demo'}_{hash(prompt) % 10000}"
+    job_id = f"job_{int(time.time())}_{uuid.uuid4().hex[:6]}"
 
     job_data = {
         "job_id": job_id,
