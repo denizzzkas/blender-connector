@@ -41,7 +41,7 @@ async def handle_generate_3d_script(ctx, params: Generate3DParams) -> ActionResu
         "explanation": explanation,
     }
 
-    queue_job_for_user(user_token, job_data)
+    await queue_job_for_user(user_token, job_data, ctx)
 
     res = Generate3DResult(
         job_id=job_id,
@@ -70,12 +70,12 @@ async def handle_inspect_active_scene(ctx, params: InspectSceneParams = InspectS
 
     # Queue an on-demand inspection request job for Blender so the next poll captures fresh scene
     job_id = f"inspect_{user_token[:6] if user_token else 'demo'}_{int(time.time()) % 10000}"
-    queue_job_for_user(user_token, {
+    await queue_job_for_user(user_token, {
         "job_id": job_id,
         "type": "inspect_scene",
         "code": "imperal_request_inspection()",
         "explanation": "On-demand scene inspection request from Webbee"
-    })
+    }, ctx)
 
     inspection = await get_scene_inspection(user_token, ctx)
 

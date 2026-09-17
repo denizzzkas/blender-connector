@@ -109,7 +109,7 @@ async def test_webhook_endpoints():
     assert body_empty["has_job"] is False
 
     # Poll with job in queue
-    queue_job_for_user("tok_123", {"job_id": "job_001", "prompt": "test cube"})
+    await queue_job_for_user("tok_123", {"job_id": "job_001", "prompt": "test cube"})
     req_poll_job = DummyRequest({"action": "poll", "token": "tok_123"})
     res_job = await webhook_fn(ctx, req_poll_job)
     assert res_job["status_code"] == 200

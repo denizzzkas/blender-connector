@@ -3,13 +3,14 @@ import time
 import urllib.parse
 from imperal_sdk import Extension
 
-# In-memory/store queue for pending jobs per user token
+# In-memory fallback queue for pending jobs per user token
 _JOB_QUEUE = {}
 _JOB_STATUSES = {}
 _USER_SCENE_INSPECTION = {}
 BLENDER_SCENE_COLLECTION = "blender_scenes"
+BLENDER_JOBS_COLLECTION = "blender_jobs"
 
-def queue_job_for_user(user_token: str, job_data: dict):
+async def queue_job_for_user(user_token: str, job_data: dict, ctx=None):
     if user_token not in _JOB_QUEUE:
         _JOB_QUEUE[user_token] = []
     _JOB_QUEUE[user_token].append(job_data)
@@ -19,6 +20,16 @@ def queue_job_for_user(user_token: str, job_data: dict):
         "prompt": job_data.get("prompt", ""),
         "explanation": job_data.get("explanation", "")
     }
+
+    if ctx and hasattr(ctx, "store") and ctx.store:
+        try:
+            job_record = dict(job_data)
+            job_record["user_token"] = user_token
+            job_record["status"] = "pending"
+            job_record["created_at"] = time.time()
+            await ctx.store.create(BLENDER_JOBS_COLLECTION, job_record)
+        except Exception:
+            pass
 
 def get_job_status(job_id: str) -> dict:
     return _JOB_STATUSES.get(job_id, {"status": "unknown"})
@@ -135,6 +146,24 @@ def register_webhook_handlers(ext: Extension):
                     "headers": {"Content-Type": "application/json"},
                     "body": json.dumps({"has_job": True, "job": job})
                 }
+
+            if ctx and hasattr(ctx, "store") and ctx.store:
+                try:
+                    page = await ctx.store.query(BLENDER_JOBS_COLLECTION, where={"user_token": token, "status": "pending"})
+                    if page and getattr(page, "data", None) and len(page.data) > 0:
+                        doc = page.data[0]
+                        doc_id = doc.id
+                        job = doc.to_dict() if hasattr(doc, "to_dict") else dict(doc)
+                        await ctx.store.update(BLENDER_JOBS_COLLECTION, doc_id, {"status": "executing_in_blender"})
+                        _JOB_STATUSES[job.get("job_id", "")] = {"status": "executing_in_blender"}
+                        return {
+                            "status_code": 200,
+                            "headers": {"Content-Type": "application/json"},
+                            "body": json.dumps({"has_job": True, "job": job})
+                        }
+                except Exception:
+                    pass
+
             return {
                 "status_code": 200,
                 "headers": {"Content-Type": "application/json"},
@@ -174,6 +203,19 @@ def register_webhook_handlers(ext: Extension):
                 _JOB_STATUSES[job_id]["status"] = status
                 if error:
                     _JOB_STATUSES[job_id]["error"] = urllib.parse.unquote(error)
+
+            if ctx and hasattr(ctx, "store") and ctx.store and job_id:
+                try:
+                    page = await ctx.store.query(BLENDER_JOBS_COLLECTION, where={"job_id": job_id})
+                    if page and getattr(page, "data", None) and len(page.data) > 0:
+                        doc_id = page.data[0].id
+                        await ctx.store.update(BLENDER_JOBS_COLLECTION, doc_id, {
+                            "status": status,
+                            "error": urllib.parse.unquote(error) if error else "",
+                            "updated_at": time.time()
+                        })
+                except Exception:
+                    pass
 
             return {
                 "status_code": 200,
