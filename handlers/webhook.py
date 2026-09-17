@@ -27,7 +27,8 @@ async def queue_job_for_user(user_token: str, job_data: dict, ctx=None):
             job_record["user_token"] = user_token
             job_record["status"] = "pending"
             job_record["created_at"] = time.time()
-            await ctx.store.create(BLENDER_JOBS_COLLECTION, job_record)
+            store = ctx.store.for_user(user_token) if hasattr(ctx.store, "for_user") else ctx.store
+            await store.create(BLENDER_JOBS_COLLECTION, job_record)
         except Exception:
             pass
 
@@ -50,13 +51,13 @@ async def store_scene_inspection(user_token: str, data: dict, ctx=None):
         try:
             record_with_user = dict(inspection_record)
             record_with_user["user_token"] = user_token
-            # Try to query existing record for user_token
-            page = await ctx.store.query(BLENDER_SCENE_COLLECTION, where={"user_token": user_token})
+            store = ctx.store.for_user(user_token) if hasattr(ctx.store, "for_user") else ctx.store
+            page = await store.query(BLENDER_SCENE_COLLECTION)
             if page and getattr(page, "data", None) and len(page.data) > 0:
                 doc_id = page.data[0].id
-                await ctx.store.update(BLENDER_SCENE_COLLECTION, doc_id, record_with_user)
+                await store.update(BLENDER_SCENE_COLLECTION, doc_id, record_with_user)
             else:
-                await ctx.store.create(BLENDER_SCENE_COLLECTION, record_with_user)
+                await store.create(BLENDER_SCENE_COLLECTION, record_with_user)
         except Exception:
             pass
 
@@ -66,10 +67,11 @@ async def get_scene_inspection(user_token: str, ctx=None) -> dict:
 
     if ctx and hasattr(ctx, "store") and ctx.store:
         try:
-            page = await ctx.store.query(BLENDER_SCENE_COLLECTION, where={"user_token": user_token})
+            store = ctx.store.for_user(user_token) if hasattr(ctx.store, "for_user") else ctx.store
+            page = await store.query(BLENDER_SCENE_COLLECTION)
             if page and getattr(page, "data", None) and len(page.data) > 0:
                 rec = page.data[0]
-                rec_dict = rec.to_dict() if hasattr(rec, "to_dict") else dict(rec)
+                rec_dict = rec.data if hasattr(rec, "data") else (rec.to_dict() if hasattr(rec, "to_dict") else dict(rec))
                 _USER_SCENE_INSPECTION[user_token] = rec_dict
                 return rec_dict
         except Exception:
@@ -149,12 +151,13 @@ def register_webhook_handlers(ext: Extension):
 
             if ctx and hasattr(ctx, "store") and ctx.store:
                 try:
-                    page = await ctx.store.query(BLENDER_JOBS_COLLECTION, where={"user_token": token, "status": "pending"})
+                    store = ctx.store.for_user(token) if hasattr(ctx.store, "for_user") else ctx.store
+                    page = await store.query(BLENDER_JOBS_COLLECTION, where={"status": "pending"})
                     if page and getattr(page, "data", None) and len(page.data) > 0:
                         doc = page.data[0]
                         doc_id = doc.id
-                        job = doc.to_dict() if hasattr(doc, "to_dict") else dict(doc)
-                        await ctx.store.update(BLENDER_JOBS_COLLECTION, doc_id, {"status": "executing_in_blender"})
+                        job = doc.data if hasattr(doc, "data") else (doc.to_dict() if hasattr(doc, "to_dict") else dict(doc))
+                        await store.update(BLENDER_JOBS_COLLECTION, doc_id, {"status": "executing_in_blender"})
                         _JOB_STATUSES[job.get("job_id", "")] = {"status": "executing_in_blender"}
                         return {
                             "status_code": 200,
@@ -206,10 +209,11 @@ def register_webhook_handlers(ext: Extension):
 
             if ctx and hasattr(ctx, "store") and ctx.store and job_id:
                 try:
-                    page = await ctx.store.query(BLENDER_JOBS_COLLECTION, where={"job_id": job_id})
+                    store = ctx.store.for_user(token) if (token and hasattr(ctx.store, "for_user")) else ctx.store
+                    page = await store.query(BLENDER_JOBS_COLLECTION, where={"job_id": job_id})
                     if page and getattr(page, "data", None) and len(page.data) > 0:
                         doc_id = page.data[0].id
-                        await ctx.store.update(BLENDER_JOBS_COLLECTION, doc_id, {
+                        await store.update(BLENDER_JOBS_COLLECTION, doc_id, {
                             "status": status,
                             "error": urllib.parse.unquote(error) if error else "",
                             "updated_at": time.time()
