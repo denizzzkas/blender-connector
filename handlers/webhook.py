@@ -11,9 +11,8 @@ BLENDER_SCENE_COLLECTION = "blender_scenes"
 BLENDER_JOBS_COLLECTION = "blender_jobs"
 
 async def queue_job_for_user(user_token: str, job_data: dict, ctx=None):
-    if user_token not in _JOB_QUEUE:
-        _JOB_QUEUE[user_token] = []
-    _JOB_QUEUE[user_token].append(job_data)
+    # Replace pending queue with the latest job to avoid executing stale older jobs
+    _JOB_QUEUE[user_token] = [job_data]
     _JOB_STATUSES[job_data["job_id"]] = {
         "status": "pending_blender",
         "created_at": time.time(),
