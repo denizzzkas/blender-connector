@@ -2,7 +2,7 @@ from imperal_sdk import Extension, ChatExtension
 
 ext = Extension(
     "blender-connector",
-    version="1.1.0",
+    version="1.1.1",
     display_name="Blender Connector",
     description="AI 3D Scene Generator and Inspector for Blender via Imperal Cloud.",
     icon="icon.svg",

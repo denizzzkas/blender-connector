@@ -164,7 +164,7 @@ def test_manifest_validation():
     with open(manifest_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     assert data["app_id"] == "blender-connector"
-    assert data["version"] == "1.1.0"
+    assert data["version"] == "1.1.1"
     assert len(data["tools"]) == 3
     tool_names = [t["name"] for t in data["tools"]]
     assert "generate_3d_script" in tool_names

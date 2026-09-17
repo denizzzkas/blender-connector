@@ -1,7 +1,7 @@
 bl_info = {
     "name": "Imperal Blender Connector",
     "author": "Imperal Cloud",
-    "version": (1, 1, 0),
+    "version": (1, 1, 1),
     "blender": (3, 0, 0),
     "location": "View3D > Sidebar > Imperal",
     "description": "Connects Blender to Imperal Cloud to execute AI-generated 3D Python scripts with Scene Vision and Inspection.",

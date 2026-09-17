@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] - 2026-09-17
+
+### Added
+- ⚡ **On-Demand 3D Scene Inspection**: Optimized background polling to 0% CPU/GPU overhead when idle, and added automatic on-demand scene sync triggers.
+- 💾 **Persistent Scene Store**: Updated backend storage to use persistent `ctx.store` (`blender_scenes` collection) for reliable scene inspection state.
+
 ## [1.1.0] - 2026-09-16
 
 ### Added

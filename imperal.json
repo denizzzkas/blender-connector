@@ -2,7 +2,7 @@
   "manifest_schema_version": 3,
   "sdk_version": "5.15.1",
   "app_id": "blender-connector",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "name": "Blender Connector",
   "description": "AI 3D Scene Generator and Inspector for Blender via Imperal Cloud. Features 3D scene structure inspection, viewport vision, and natural language bpy generation.",
   "icon": "icon.svg",
