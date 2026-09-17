@@ -42,10 +42,11 @@ def generate_bpy_code(prompt: str, target_mode: str = "new_scene") -> tuple[str,
     
     if target_mode == "new_scene":
         code_lines.extend([
-            "# Clear existing mesh objects in scene",
-            "if bpy.context.object:",
-            "    bpy.ops.object.select_all(action='SELECT')",
-            "    bpy.ops.object.delete(use_global=False)",
+            "# Clear all existing objects in scene",
+            "if bpy.context.object and getattr(bpy.context.object, 'mode', 'OBJECT') != 'OBJECT':",
+            "    bpy.ops.object.mode_set(mode='OBJECT')",
+            "for obj in list(bpy.context.scene.objects):",
+            "    bpy.data.objects.remove(obj, do_unlink=True)",
             ""
         ])
         
