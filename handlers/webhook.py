@@ -35,14 +35,21 @@ def get_job_status(job_id: str) -> dict:
     return _JOB_STATUSES.get(job_id, {"status": "unknown"})
 
 async def store_scene_inspection(user_token: str, data: dict, ctx=None):
+    prev = _USER_SCENE_INSPECTION.get(user_token, {})
+    new_snapshot = data.get("viewport_snapshot")
+    # Preserve existing snapshot if new poll payload does not include one
+    if not new_snapshot and prev.get("viewport_snapshot"):
+        new_snapshot = prev.get("viewport_snapshot")
+
     inspection_record = {
         "timestamp": time.time(),
-        "scene_name": data.get("scene_name", "Scene"),
-        "objects_count": data.get("objects_count", 0),
-        "active_object": data.get("active_object"),
-        "selected_objects": data.get("selected_objects", []),
-        "objects": data.get("objects", []),
-        "viewport_snapshot": data.get("viewport_snapshot")
+        "scene_name": data.get("scene_name", prev.get("scene_name", "Scene")),
+        "objects_count": data.get("objects_count", prev.get("objects_count", 0)),
+        "active_object": data.get("active_object", prev.get("active_object")),
+        "selected_objects": data.get("selected_objects", prev.get("selected_objects", [])),
+        "objects": data.get("objects", prev.get("objects", [])),
+        "viewport_snapshot": new_snapshot,
+        "viewport_error": data.get("viewport_error")
     }
     _USER_SCENE_INSPECTION[user_token] = inspection_record
 
@@ -222,11 +229,36 @@ def register_webhook_handlers(ext: Extension):
             job_id = query.get("job_id", "")
             status = query.get("status", "success")
             error = query.get("error", "")
+            stdout_log = ""
+            stderr_log = ""
+
+            # Extract json body if posted
+            try:
+                raw_body = body or query.get("data", "")
+                if isinstance(raw_body, bytes): raw_body = raw_body.decode('utf-8')
+                if isinstance(raw_body, dict):
+                    rep_data = raw_body
+                elif isinstance(raw_body, str) and raw_body.strip():
+                    rep_data = json.loads(raw_body)
+                else:
+                    rep_data = {}
+                if isinstance(rep_data, dict):
+                    job_id = rep_data.get("job_id", job_id)
+                    status = rep_data.get("status", status)
+                    error = rep_data.get("error", error)
+                    stdout_log = rep_data.get("stdout", "")
+                    stderr_log = rep_data.get("stderr", "")
+            except Exception:
+                pass
 
             if job_id in _JOB_STATUSES:
                 _JOB_STATUSES[job_id]["status"] = status
                 if error:
-                    _JOB_STATUSES[job_id]["error"] = urllib.parse.unquote(error)
+                    _JOB_STATUSES[job_id]["error"] = urllib.parse.unquote(error) if isinstance(error, str) else str(error)
+                if stdout_log:
+                    _JOB_STATUSES[job_id]["stdout"] = stdout_log
+                if stderr_log:
+                    _JOB_STATUSES[job_id]["stderr"] = stderr_log
 
             if ctx and hasattr(ctx, "store") and ctx.store and job_id:
                 try:
@@ -234,11 +266,14 @@ def register_webhook_handlers(ext: Extension):
                     page = await store.query(BLENDER_JOBS_COLLECTION, where={"job_id": job_id})
                     if page and getattr(page, "data", None) and len(page.data) > 0:
                         doc_id = page.data[0].id
-                        await store.update(BLENDER_JOBS_COLLECTION, doc_id, {
+                        update_payload = {
                             "status": status,
-                            "error": urllib.parse.unquote(error) if error else "",
+                            "error": urllib.parse.unquote(error) if (isinstance(error, str) and error) else "",
                             "updated_at": time.time()
-                        })
+                        }
+                        if stdout_log: update_payload["stdout"] = stdout_log
+                        if stderr_log: update_payload["stderr"] = stderr_log
+                        await store.update(BLENDER_JOBS_COLLECTION, doc_id, update_payload)
                 except Exception:
                     pass
 

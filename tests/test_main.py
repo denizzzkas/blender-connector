@@ -117,11 +117,11 @@ async def test_webhook_endpoints():
     assert body_job["has_job"] is True
     assert body_job["job"]["job_id"] == "job_001"
 
-    # Sync inspection webhook
+    # Sync inspection webhook with snapshot
     req_sync = DummyRequest({
         "action": "sync_inspection",
         "token": "tok_123",
-        "data": json.dumps({"scene_name": "SyncedScene", "objects_count": 5})
+        "data": json.dumps({"scene_name": "SyncedScene", "objects_count": 5, "viewport_snapshot": "snap_123"})
     })
     res_sync = await webhook_fn(ctx, req_sync)
     assert res_sync["status_code"] == 200
@@ -129,19 +129,36 @@ async def test_webhook_endpoints():
     inspection = await get_scene_inspection("tok_123")
     assert inspection["scene_name"] == "SyncedScene"
     assert inspection["objects_count"] == 5
+    assert inspection["viewport_snapshot"] == "snap_123"
 
-    # Report execution result webhook
+    # Poll with no snapshot should NOT overwrite existing snapshot
+    req_poll_with_data = DummyRequest({
+        "action": "poll",
+        "token": "tok_123",
+        "data": json.dumps({"scene_inspection": {"scene_name": "SyncedScene", "objects_count": 6}})
+    })
+    await webhook_fn(ctx, req_poll_with_data)
+    inspection_after_poll = await get_scene_inspection("tok_123")
+    assert inspection_after_poll["objects_count"] == 6
+    assert inspection_after_poll["viewport_snapshot"] == "snap_123"
+
+    # Report execution result webhook with stdout/stderr
     req_result = DummyRequest({
         "action": "result",
         "token": "tok_123",
-        "job_id": "job_001",
-        "status": "completed"
+        "data": json.dumps({
+            "job_id": "job_001",
+            "status": "completed",
+            "stdout": "Created object successfully",
+            "stderr": ""
+        })
     })
     res_res = await webhook_fn(ctx, req_result)
     assert res_res["status_code"] == 200
 
     job_st = get_job_status("job_001")
     assert job_st["status"] == "completed"
+    assert job_st["stdout"] == "Created object successfully"
 
 @pytest.mark.asyncio
 async def test_panels_rendering():
@@ -164,7 +181,7 @@ def test_manifest_validation():
     with open(manifest_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     assert data["app_id"] == "blender-connector"
-    assert data["version"] == "1.1.1"
+    assert data["version"] == "1.2.0"
     assert len(data["tools"]) == 3
     tool_names = [t["name"] for t in data["tools"]]
     assert "generate_3d_script" in tool_names

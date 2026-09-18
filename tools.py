@@ -109,6 +109,6 @@ async def handle_get_addon_script(ctx, params: GetAddonParams = GetAddonParams()
     res = GetAddonResult(
         filename="imperal_blender_connector.py",
         addon_code=addon_code,
-        version="1.1.1",
+        version="1.2.0",
     )
     return ActionResult.success(data=res, summary="Retrieved Blender connector addon source code.")

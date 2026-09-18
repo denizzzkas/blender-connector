@@ -1,6 +1,7 @@
 import uuid
 import json
 import time
+import math
 
 BLENDER_PROMPT_TEMPLATE = """You are an expert Blender Python (bpy) developer.
 Generate a clean, robust, standalone Python script using Blender's `bpy` module based on the user's prompt.
@@ -10,26 +11,21 @@ TARGET MODE: {target_mode}
 
 RULES:
 1. Always import `bpy`, `math`, `random` if needed.
-2. If TARGET MODE is 'new_scene', clear default objects first:
-   bpy.ops.object.select_all(action='SELECT')
-   bpy.ops.object.delete(use_global=False)
+2. If TARGET MODE is 'new_scene', clear default objects first.
 3. Ensure objects are created with proper shading and materials (use_nodes=True).
 4. Create camera and studio lighting if building a full scene.
-5. Do NOT include markdown formatting like ```python in the output if returning raw code, or return clean executable code.
+5. Return clean executable code without markdown tags.
 6. Ensure script runs cleanly in Blender 3.0+ without errors.
 """
 
 def generate_bpy_code(prompt: str, target_mode: str = "new_scene") -> tuple[str, str]:
     """
-    Generates Blender Python (bpy) code for a given prompt.
+    Generates dynamic Blender Python (bpy) code tailored to the user's prompt.
     Returns (code_string, explanation).
     """
-    job_id = str(uuid.uuid4())
-    
-    # Smart procedural code builder for standard primitives/scenes
     prompt_lower = prompt.lower()
-    is_beside = any(w in prompt_lower for k in ["рядом", "beside", "next to", "alongside"] for w in [k]) or target_mode == "modify_active"
-    
+    is_beside = any(w in prompt_lower for w in ["рядом", "beside", "next to", "alongside", "справа", "слева"]) or target_mode == "modify_active"
+
     code_lines = [
         "import bpy",
         "import math",
@@ -38,420 +34,203 @@ def generate_bpy_code(prompt: str, target_mode: str = "new_scene") -> tuple[str,
         "# Imperal AI Generated Blender Script",
         f"# Prompt: {prompt}",
         f"# Mode: {target_mode}",
+        "",
+        "# 0. Ensure safe OBJECT mode",
+        "if bpy.context.object and getattr(bpy.context.object, 'mode', 'OBJECT') != 'OBJECT':",
+        "    try: bpy.ops.object.mode_set(mode='OBJECT')",
+        "    except Exception: pass",
         ""
     ]
-    
+
     if target_mode == "new_scene" and not is_beside:
         code_lines.extend([
             "# Clear all existing objects in scene",
-            "if bpy.context.object and getattr(bpy.context.object, 'mode', 'OBJECT') != 'OBJECT':",
-            "    bpy.ops.object.mode_set(mode='OBJECT')",
             "for obj in list(bpy.context.scene.objects):",
             "    bpy.data.objects.remove(obj, do_unlink=True)",
             ""
         ])
-    
-    # Calculate offset if generating beside existing scene
+
+    # Dynamic Bounding Box Offset for placing beside existing objects
     if is_beside:
         code_lines.extend([
-            "# Calculate offset X to place scene beside existing objects",
-            "existing_x = [obj.location.x for obj in bpy.context.scene.objects if hasattr(obj, 'location')]",
-            "offset_x = max(existing_x) + 15.0 if existing_x else 20.0",
+            "# Calculate bounding box offset to place geometry beside existing objects",
+            "all_objs = [o for o in bpy.context.scene.objects if o.type in ('MESH', 'CURVE', 'SURFACE')]",
+            "if all_objs:",
+            "    max_x = max([(o.matrix_world @ mathutils.Vector(corner)).x for o in all_objs for corner in o.bound_box]) if hasattr(bpy, 'mathutils') else max([o.location.x + max(o.dimensions.x, 2.0) for o in all_objs])",
+            "    offset_x = max_x + 5.0",
+            "else:",
+            "    offset_x = 10.0",
             ""
         ])
     else:
         code_lines.append("offset_x = 0.0\n")
-        
-    if any(k in prompt_lower for k in ["film", "movie", "fireplace", "armchair", "soundstage", "set", "room", "recreate", "man_and_woman", "камин", "сцена", "площадк", "актер", "комнат", "студи"]):
+
+    # Helper function inside script for creating Principled BSDF materials
+    code_lines.extend([
+        "# Material helper",
+        "def create_material(name, color=(0.8, 0.8, 0.8, 1.0), metallic=0.0, roughness=0.5, emission=None, emission_strength=1.0):",
+        "    mat = bpy.data.materials.new(name=name)",
+        "    mat.use_nodes = True",
+        "    bsdf = mat.node_tree.nodes.get('Principled BSDF')",
+        "    if bsdf:",
+        "        if 'Base Color' in bsdf.inputs: bsdf.inputs['Base Color'].default_value = color",
+        "        if 'Metallic' in bsdf.inputs: bsdf.inputs['Metallic'].default_value = metallic",
+        "        if 'Roughness' in bsdf.inputs: bsdf.inputs['Roughness'].default_value = roughness",
+        "        if emission:",
+        "            if 'Emission Color' in bsdf.inputs: bsdf.inputs['Emission Color'].default_value = emission",
+        "            elif 'Emission' in bsdf.inputs: bsdf.inputs['Emission'].default_value = emission",
+        "            if 'Emission Strength' in bsdf.inputs: bsdf.inputs['Emission Strength'].default_value = emission_strength",
+        "    return mat",
+        ""
+    ])
+
+    # Pattern Matching for Target Geometry
+    if "cube" in prompt_lower or "box" in prompt_lower:
+        color = "(0.9, 0.47, 0.16, 1.0)" if "orange" in prompt_lower or "imperal" in prompt_lower else "(0.1, 0.5, 0.9, 1.0)"
+        metallic = "0.9" if "metal" in prompt_lower else "0.1"
+        roughness = "0.1" if "gloss" in prompt_lower or "metal" in prompt_lower else "0.4"
         code_lines.extend([
-            "# Film Set Room with Fireplace and Movie Equipment",
-            "",
-            "# 1. Room Shell (Back Wall, Side Walls, Wooden Floor)",
-            "bpy.ops.mesh.primitive_plane_add(size=12, location=(offset_x, 0, 0))",
-            "floor = bpy.context.active_object",
-            "floor.name = 'Wood_Floor'",
-            "floor.scale = (1.0, 1.2, 1.0)",
-            "mat_floor = bpy.data.materials.new(name='Wood_Floor_Mat')",
-            "mat_floor.use_nodes = True",
-            "bsdf_floor = mat_floor.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_floor:",
-            "    bsdf_floor.inputs['Base Color'].default_value = (0.22, 0.12, 0.07, 1.0)",
-            "    bsdf_floor.inputs['Roughness'].default_value = 0.35",
-            "floor.data.materials.append(mat_floor)",
-            "",
-            "# Back Wall",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x, 5, 3))",
-            "wall_back = bpy.context.active_object",
-            "wall_back.name = 'Wall_Back'",
-            "wall_back.scale = (12.0, 0.2, 6.0)",
-            "mat_wall = bpy.data.materials.new(name='Classic_Wall_Mat')",
-            "mat_wall.use_nodes = True",
-            "bsdf_wall = mat_wall.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_wall:",
-            "    bsdf_wall.inputs['Base Color'].default_value = (0.15, 0.18, 0.22, 1.0)",
-            "    bsdf_wall.inputs['Roughness'].default_value = 0.65",
-            "wall_back.data.materials.append(mat_wall)",
-            "",
-            "# Left Wall",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x - 6, 0, 3))",
-            "wall_left = bpy.context.active_object",
-            "wall_left.name = 'Wall_Left'",
-            "wall_left.scale = (0.2, 10.0, 6.0)",
-            "wall_left.data.materials.append(mat_wall)",
-            "",
-            "# 2. Ornate Fireplace (Main Back Center Feature)",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x, 4.7, 1.2))",
-            "fp_base = bpy.context.active_object",
-            "fp_base.name = 'Fireplace_Surround'",
-            "fp_base.scale = (3.2, 0.6, 2.4)",
-            "mat_stone = bpy.data.materials.new(name='Fireplace_Stone')",
-            "mat_stone.use_nodes = True",
-            "bsdf_stone = mat_stone.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_stone:",
-            "    bsdf_stone.inputs['Base Color'].default_value = (0.85, 0.82, 0.78, 1.0)",
-            "    bsdf_stone.inputs['Roughness'].default_value = 0.4",
-            "fp_base.data.materials.append(mat_stone)",
-            "",
-            "# Fireplace Opening (Dark Hearth)",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x, 4.5, 0.9))",
-            "fp_hearth = bpy.context.active_object",
-            "fp_hearth.name = 'Fireplace_Hearth'",
-            "fp_hearth.scale = (1.8, 0.5, 1.6)",
-            "mat_dark = bpy.data.materials.new(name='Hearth_Dark')",
-            "mat_dark.use_nodes = True",
-            "bsdf_dark = mat_dark.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_dark:",
-            "    bsdf_dark.inputs['Base Color'].default_value = (0.05, 0.04, 0.04, 1.0)",
-            "fp_hearth.data.materials.append(mat_dark)",
-            "",
-            "# Fireplace Mantel Shelf",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x, 4.6, 2.5))",
-            "fp_mantel = bpy.context.active_object",
-            "fp_mantel.name = 'Fireplace_Mantel'",
-            "fp_mantel.scale = (3.6, 0.8, 0.2)",
-            "fp_mantel.data.materials.append(mat_stone)",
-            "",
-            "# Warm Fireplace Glow Light",
-            "bpy.ops.object.light_add(type='POINT', location=(offset_x, 4.3, 0.8))",
-            "fire_light = bpy.context.active_object",
-            "fire_light.name = 'Fire_Glow_Light'",
-            "fire_light.data.color = (1.0, 0.4, 0.1)",
-            "fire_light.data.energy = 80.0",
-            "",
-            "# 3. Seating Area (Two Armchairs facing each other + Coffee Table)",
-            "mat_velvet = bpy.data.materials.new(name='Armchair_Red_Velvet')",
-            "mat_velvet.use_nodes = True",
-            "bsdf_v = mat_velvet.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_v:",
-            "    bsdf_v.inputs['Base Color'].default_value = (0.5, 0.08, 0.1, 1.0)",
-            "    bsdf_v.inputs['Roughness'].default_value = 0.8",
-            "",
-            "# Left Armchair (Actor 1)",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x - 1.8, 2.2, 0.5))",
-            "chair1 = bpy.context.active_object",
-            "chair1.name = 'Armchair_Left'",
-            "chair1.scale = (1.1, 1.1, 1.0)",
-            "chair1.rotation_euler = (0, 0, math.radians(35))",
-            "chair1.data.materials.append(mat_velvet)",
-            "",
-            "# Right Armchair (Actor 2)",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x + 1.8, 2.2, 0.5))",
-            "chair2 = bpy.context.active_object",
-            "chair2.name = 'Armchair_Right'",
-            "chair2.scale = (1.1, 1.1, 1.0)",
-            "chair2.rotation_euler = (0, 0, math.radians(-35))",
-            "chair2.data.materials.append(mat_velvet)",
-            "",
-            "# Coffee Table in Center",
-            "bpy.ops.mesh.primitive_cylinder_add(radius=0.7, depth=0.5, location=(offset_x, 2.2, 0.25))",
-            "table = bpy.context.active_object",
-            "table.name = 'Coffee_Table'",
-            "table.data.materials.append(mat_floor)",
-            "",
-            "# 4. Movie Production Equipment (Backstage Set)",
-            "# Movie Camera on Tripod (Facing the set)",
-            "bpy.ops.mesh.primitive_cylinder_add(radius=0.05, depth=1.6, location=(offset_x, -2.5, 0.8))",
-            "tripod = bpy.context.active_object",
-            "tripod.name = 'Camera_Tripod_Stand'",
-            "",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x, -2.5, 1.6))",
-            "cam_body = bpy.context.active_object",
-            "cam_body.name = 'Movie_Camera_Body'",
-            "cam_body.scale = (0.5, 0.8, 0.5)",
-            "mat_black = bpy.data.materials.new(name='Matte_Black_Gear')",
-            "mat_black.use_nodes = True",
-            "bsdf_b = mat_black.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_b:",
-            "    bsdf_b.inputs['Base Color'].default_value = (0.05, 0.05, 0.05, 1.0)",
-            "cam_body.data.materials.append(mat_black)",
-            "",
-            "# Studio Softbox Light Left",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x - 3.5, -1.0, 2.5))",
-            "softbox1 = bpy.context.active_object",
-            "softbox1.name = 'Softbox_Light_Left'",
-            "softbox1.scale = (0.2, 1.2, 1.2)",
-            "softbox1.rotation_euler = (math.radians(15), math.radians(-20), math.radians(-40))",
-            "softbox1.data.materials.append(mat_black)",
-            "",
-            "bpy.ops.object.light_add(type='SPOT', location=(offset_x - 3.5, -1.0, 2.5))",
-            "spot1 = bpy.context.active_object",
-            "spot1.name = 'Spotlight_Key'",
-            "spot1.data.energy = 300.0",
-            "spot1.data.color = (1.0, 0.95, 0.85)",
-            "",
-            "# Studio Softbox Light Right",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x + 3.5, -1.0, 2.5))",
-            "softbox2 = bpy.context.active_object",
-            "softbox2.name = 'Softbox_Light_Right'",
-            "softbox2.scale = (0.2, 1.2, 1.2)",
-            "softbox2.rotation_euler = (math.radians(15), math.radians(20), math.radians(40))",
-            "softbox2.data.materials.append(mat_black)",
-            "",
-            "bpy.ops.object.light_add(type='SPOT', location=(offset_x + 3.5, -1.0, 2.5))",
-            "spot2 = bpy.context.active_object",
-            "spot2.name = 'Spotlight_Fill'",
-            "spot2.data.energy = 150.0",
-            "spot2.data.color = (0.85, 0.9, 1.0)",
-            "",
-            "# 5. Actors in Armchairs (Man & Woman Figures)",
-            "mat_skin = bpy.data.materials.new(name='Actor_Skin')",
-            "mat_skin.use_nodes = True",
-            "bsdf_skin = mat_skin.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_skin:",
-            "    bsdf_skin.inputs['Base Color'].default_value = (0.8, 0.62, 0.52, 1.0)",
-            "",
-            "# Actor Man (Left Chair)",
-            "bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=0.8, location=(offset_x - 1.8, 2.2, 0.8))",
-            "man_torso = bpy.context.active_object",
-            "man_torso.name = 'Actor_Man_Torso'",
-            "man_torso.data.materials.append(mat_black)",
-            "bpy.ops.mesh.primitive_uv_sphere_add(radius=0.2, location=(offset_x - 1.8, 2.2, 1.35))",
-            "man_head = bpy.context.active_object",
-            "man_head.name = 'Actor_Man_Head'",
-            "man_head.data.materials.append(mat_skin)",
-            "",
-            "# Actor Woman (Right Chair)",
-            "bpy.ops.mesh.primitive_cylinder_add(radius=0.23, depth=0.8, location=(offset_x + 1.8, 2.2, 0.8))",
-            "woman_torso = bpy.context.active_object",
-            "woman_torso.name = 'Actor_Woman_Torso'",
-            "mat_dress = bpy.data.materials.new(name='Dress_Yellow')",
-            "mat_dress.use_nodes = True",
-            "bsdf_dress = mat_dress.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_dress:",
-            "    bsdf_dress.inputs['Base Color'].default_value = (0.9, 0.7, 0.1, 1.0)",
-            "woman_torso.data.materials.append(mat_dress)",
-            "bpy.ops.mesh.primitive_uv_sphere_add(radius=0.19, location=(offset_x + 1.8, 2.2, 1.35))",
-            "woman_head = bpy.context.active_object",
-            "woman_head.name = 'Actor_Woman_Head'",
-            "woman_head.data.materials.append(mat_skin)",
-            "",
-            "# 6. Boom Microphone Overhead",
-            "bpy.ops.mesh.primitive_cylinder_add(radius=0.03, depth=3.5, location=(offset_x - 1.0, 1.0, 2.8))",
-            "boom_pole = bpy.context.active_object",
-            "boom_pole.name = 'Boom_Pole'",
-            "boom_pole.rotation_euler = (math.radians(20), math.radians(45), 0)",
-            "boom_pole.data.materials.append(mat_black)",
-            "bpy.ops.mesh.primitive_cylinder_add(radius=0.08, depth=0.35, location=(offset_x, 2.0, 2.3))",
-            "boom_mic = bpy.context.active_object",
-            "boom_mic.name = 'Boom_Microphone_Furry'",
-            "boom_mic.data.materials.append(mat_black)",
-            "",
-            "# 7. Painting / Mirror above Fireplace Mantel",
-            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x, 4.8, 3.8))",
-            "frame = bpy.context.active_object",
-            "frame.name = 'Fireplace_Painting_Frame'",
-            "frame.scale = (2.2, 0.1, 1.5)",
-            "mat_gold = bpy.data.materials.new(name='Gold_Frame')",
-            "mat_gold.use_nodes = True",
-            "bsdf_g = mat_gold.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_g:",
-            "    bsdf_g.inputs['Base Color'].default_value = (0.85, 0.65, 0.15, 1.0)",
-            "    bsdf_g.inputs['Metallic'].default_value = 0.9",
-            "frame.data.materials.append(mat_gold)",
-        ])
-        explanation = "Generated a 3D film set room with an ornate fireplace, wooden floor, armchairs, coffee table, movie camera, and softbox studio lights based on reference."
-        
-    elif "cube" in prompt_lower or "box" in prompt_lower:
-        code_lines.extend([
-            "bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 1))",
+            f"mat = create_material('Cube_Mat', color={color}, metallic={metallic}, roughness={roughness})",
+            "bpy.ops.mesh.primitive_cube_add(size=2.0, location=(offset_x, 0, 1.0))",
             "cube = bpy.context.active_object",
             "cube.name = 'Imperal_Cube'",
-            "",
-            "# Add a glossy material",
-            "mat = bpy.data.materials.new(name='Imperal_Material')",
-            "mat.use_nodes = True",
-            "nodes = mat.node_tree.nodes",
-            "bsdf = nodes.get('Principled BSDF')",
-            "if bsdf:",
-            "    bsdf.inputs['Base Color'].default_value = (0.9, 0.47, 0.16, 1.0) # Imperal Orange",
-            "    bsdf.inputs['Roughness'].default_value = 0.2",
             "cube.data.materials.append(mat)",
         ])
-        explanation = "Created an Imperal Orange glossy cube at origin."
-        
+        explanation = f"Created a procedural cube at location offset ({color})."
+
     elif "sphere" in prompt_lower or "planet" in prompt_lower or "ball" in prompt_lower:
+        color = "(0.1, 0.6, 0.9, 1.0)" if "blue" in prompt_lower else "(0.85, 0.2, 0.2, 1.0)"
+        metallic = "0.9" if "metal" in prompt_lower else "0.0"
         code_lines.extend([
-            "bpy.ops.mesh.primitive_uv_sphere_add(radius=1.5, location=(0, 0, 1.5))",
+            f"mat = create_material('Sphere_Mat', color={color}, metallic={metallic}, roughness=0.15)",
+            "bpy.ops.mesh.primitive_uv_sphere_add(radius=1.5, location=(offset_x, 0, 1.5))",
             "sphere = bpy.context.active_object",
             "sphere.name = 'Imperal_Sphere'",
             "bpy.ops.object.shade_smooth()",
-            "",
-            "mat = bpy.data.materials.new(name='Metallic_Material')",
-            "mat.use_nodes = True",
-            "nodes = mat.node_tree.nodes",
-            "bsdf = nodes.get('Principled BSDF')",
-            "if bsdf:",
-            "    bsdf.inputs['Base Color'].default_value = (0.1, 0.6, 0.9, 1.0)",
-            "    bsdf.inputs['Metallic'].default_value = 0.9",
-            "    bsdf.inputs['Roughness'].default_value = 0.1",
             "sphere.data.materials.append(mat)",
         ])
-        explanation = "Created a smooth metallic sphere with blue reflection."
-        
+        explanation = "Created a smooth procedural sphere with reflections."
+
     elif "cylinder" in prompt_lower or "tube" in prompt_lower or "pillar" in prompt_lower:
         code_lines.extend([
-            "bpy.ops.mesh.primitive_cylinder_add(radius=1.0, depth=3.0, location=(0, 0, 1.5))",
+            "mat = create_material('Cylinder_Mat', color=(0.2, 0.8, 0.4, 1.0), roughness=0.3)",
+            "bpy.ops.mesh.primitive_cylinder_add(radius=1.0, depth=3.0, location=(offset_x, 0, 1.5))",
             "cylinder = bpy.context.active_object",
             "cylinder.name = 'Imperal_Cylinder'",
-            "",
-            "mat = bpy.data.materials.new(name='Cylinder_Material')",
-            "mat.use_nodes = True",
-            "nodes = mat.node_tree.nodes",
-            "bsdf = nodes.get('Principled BSDF')",
-            "if bsdf:",
-            "    bsdf.inputs['Base Color'].default_value = (0.2, 0.8, 0.4, 1.0)",
             "cylinder.data.materials.append(mat)",
         ])
-        explanation = "Created a green cylinder at origin."
-        
-    elif "city" in prompt_lower or "building" in prompt_lower or "town" in prompt_lower:
+        explanation = "Created a procedural cylinder with material."
+
+    elif "crystal" in prompt_lower or "gem" in prompt_lower or "shard" in prompt_lower or "cluster" in prompt_lower or "magic" in prompt_lower:
         code_lines.extend([
-            "# Procedural Grid City Generation",
-            "for x in range(-3, 4):",
-            "    for y in range(-3, 4):",
-            "        h = random.uniform(1.0, 5.0)",
-            "        bpy.ops.mesh.primitive_cube_add(size=1.0, location=(x * 1.5, y * 1.5, h / 2.0))",
-            "        bldg = bpy.context.active_object",
-            "        bldg.scale = (1.0, 1.0, h)",
-        ])
-        explanation = "Generated a 7x7 procedural city grid with random building heights."
-        
-    elif "crystal" in prompt_lower or "gem" in prompt_lower or "shard" in prompt_lower or "cluster" in prompt_lower or "magic" in prompt_lower or "fantasy" in prompt_lower:
-        code_lines.extend([
-            "# Procedural Glowing Fantasy Crystal Cluster",
-            "# Ground / Rocky Base",
-            "bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=3.5, depth=0.4, location=(0, 0, -0.2))",
+            "# Rocky Base",
+            "mat_rock = create_material('Dark_Rock_Mat', color=(0.05, 0.04, 0.07, 1.0), roughness=0.9)",
+            "bpy.ops.mesh.primitive_cylinder_add(vertices=12, radius=3.5, depth=0.4, location=(offset_x, 0, -0.2))",
             "base = bpy.context.active_object",
             "base.name = 'Dark_Rock_Base'",
-            "mat_rock = bpy.data.materials.new(name='Dark_Rock_Mat')",
-            "mat_rock.use_nodes = True",
-            "bsdf_rock = mat_rock.node_tree.nodes.get('Principled BSDF')",
-            "if bsdf_rock:",
-            "    bsdf_rock.inputs['Base Color'].default_value = (0.05, 0.04, 0.07, 1.0)",
-            "    bsdf_rock.inputs['Roughness'].default_value = 0.9",
             "base.data.materials.append(mat_rock)",
             "",
-            "# Central Main Organic Crystal (Smooth Rounded Dome & Faceted Body)",
-            "bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.9, depth=3.2, location=(0, 0, 1.6))",
+            "# Central Crystal",
+            "mat_crystal = create_material('Bioluminescent_Crystal', color=(0.85, 0.05, 0.65, 1.0), roughness=0.1, metallic=0.2, emission=(0.9, 0.1, 0.7, 1.0), emission_strength=4.0)",
+            "bpy.ops.mesh.primitive_cylinder_add(vertices=8, radius=0.9, depth=3.2, location=(offset_x, 0, 1.6))",
             "main_crystal = bpy.context.active_object",
-            "main_crystal.name = 'Main_Crystal_Body'",
-            "main_crystal.rotation_euler = (0, 0, math.radians(22.5))",
-            "",
-            "# Dome Top",
-            "bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=0.9, location=(0, 0, 3.2))",
-            "dome_top = bpy.context.active_object",
-            "dome_top.name = 'Main_Crystal_Dome'",
-            "dome_top.scale = (1.0, 1.0, 1.1)",
-            "bpy.ops.object.shade_smooth()",
-            "",
-            "# Join Main Body and Dome",
-            "main_crystal.select_set(True)",
-            "dome_top.select_set(True)",
-            "bpy.context.view_layer.objects.active = main_crystal",
-            "bpy.ops.object.join()",
-            "main_crystal.name = 'Main_Crystal_Central'",
-            "",
-            "# Bioluminescent Crystal Material",
-            "mat_crystal = bpy.data.materials.new(name='Bioluminescent_Crystal')",
-            "mat_crystal.use_nodes = True",
-            "nodes = mat_crystal.node_tree.nodes",
-            "bsdf = nodes.get('Principled BSDF')",
-            "if bsdf:",
-            "    bsdf.inputs['Base Color'].default_value = (0.85, 0.05, 0.65, 1.0) # Deep Neon Magenta",
-            "    bsdf.inputs['Roughness'].default_value = 0.1",
-            "    bsdf.inputs['Metallic'].default_value = 0.3",
-            "    if 'Emission Color' in bsdf.inputs:",
-            "        bsdf.inputs['Emission Color'].default_value = (0.9, 0.1, 0.7, 1.0)",
-            "        bsdf.inputs['Emission Strength'].default_value = 4.5",
-            "    elif 'Emission' in bsdf.inputs:",
-            "        bsdf.inputs['Emission'].default_value = (0.9, 0.1, 0.7, 1.0)",
+            "main_crystal.name = 'Main_Crystal'",
             "main_crystal.data.materials.append(mat_crystal)",
             "",
-            "# Surrounding Smaller Sharp Crystal Shards",
+            "# Shards",
             "random.seed(42)",
-            "for i in range(7):",
-            "    angle = (2 * math.pi / 7) * i + random.uniform(-0.2, 0.2)",
-            "    dist = random.uniform(1.2, 2.2)",
-            "    x = math.cos(angle) * dist",
-            "    y = math.sin(angle) * dist",
-            "    h = random.uniform(1.2, 2.4)",
-            "    r = random.uniform(0.25, 0.45)",
-            "    tilt_x = (y / dist) * random.uniform(0.3, 0.6)",
-            "    tilt_y = (-x / dist) * random.uniform(0.3, 0.6)",
-            "    ",
-            "    bpy.ops.mesh.primitive_cone_add(vertices=5, radius1=r, radius2=0.0, depth=h, location=(x, y, h / 2.0))",
+            "for i in range(6):",
+            "    ang = (2 * math.pi / 6) * i + random.uniform(-0.15, 0.15)",
+            "    dist = random.uniform(1.3, 2.0)",
+            "    x, y = offset_x + math.cos(ang) * dist, math.sin(ang) * dist",
+            "    h = random.uniform(1.2, 2.2)",
+            "    bpy.ops.mesh.primitive_cone_add(vertices=5, radius1=0.35, depth=h, location=(x, y, h / 2.0))",
             "    shard = bpy.context.active_object",
             "    shard.name = f'Crystal_Shard_{i+1}'",
-            "    shard.rotation_euler = (tilt_x, tilt_y, random.uniform(0, 3.14))",
             "    shard.data.materials.append(mat_crystal)",
             "",
-            "# Intense Inner Ambient Glow Light (Magenta & Cyan)",
-            "bpy.ops.object.light_add(type='POINT', location=(0, 0, 2.0))",
-            "glow1 = bpy.context.active_object",
-            "glow1.data.color = (1.0, 0.1, 0.8)",
-            "glow1.data.energy = 150.0",
-            "",
-            "bpy.ops.object.light_add(type='POINT', location=(1.5, -1.5, 1.0))",
-            "glow2 = bpy.context.active_object",
-            "glow2.data.color = (0.0, 0.8, 1.0)",
-            "glow2.data.energy = 100.0",
+            "# Inner Glow Lights",
+            "bpy.ops.object.light_add(type='POINT', location=(offset_x, 0, 2.0))",
+            "glow = bpy.context.active_object",
+            "glow.data.color = (1.0, 0.1, 0.8)",
+            "glow.data.energy = 120.0",
         ])
-        explanation = "Created a cluster of glowing bioluminescent fantasy crystals with a central rounded/faceted main crystal on dark rock terrain."
+        explanation = "Created a procedural glowing bioluminescent crystal cluster on rock terrain."
+
+    elif any(w in prompt_lower for w in ["city", "building", "town", "street"]):
+        code_lines.extend([
+            "# Procedural City Grid",
+            "mat_bldg = create_material('Building_Mat', color=(0.2, 0.25, 0.3, 1.0), roughness=0.3, metallic=0.5)",
+            "for ix in range(-2, 3):",
+            "    for iy in range(-2, 3):",
+            "        bh = random.uniform(1.5, 6.0)",
+            "        bpy.ops.mesh.primitive_cube_add(size=1.0, location=(offset_x + ix * 2.0, iy * 2.0, bh / 2.0))",
+            "        bldg = bpy.context.active_object",
+            "        bldg.scale = (1.2, 1.2, bh)",
+            "        bldg.data.materials.append(mat_bldg)",
+        ])
+        explanation = "Generated a 5x5 procedural city grid with random building heights."
+
+    elif any(w in prompt_lower for w in ["room", "set", "movie", "film", "fireplace", "комнат", "сцена", "площадк", "камин"]):
+        # Dynamic procedural film set / room with adaptive props
+        code_lines.extend([
+            "# Procedural Film Set / Room Composition",
+            "mat_wood = create_material('Wood_Floor_Mat', color=(0.25, 0.14, 0.08, 1.0), roughness=0.35)",
+            "mat_wall = create_material('Interior_Wall_Mat', color=(0.18, 0.20, 0.24, 1.0), roughness=0.7)",
+            "mat_accent = create_material('Accent_Red_Mat', color=(0.55, 0.08, 0.12, 1.0), roughness=0.6)",
+            "",
+            "# Floor & Back Wall",
+            "bpy.ops.mesh.primitive_plane_add(size=10, location=(offset_x, 0, 0))",
+            "floor = bpy.context.active_object; floor.name = 'Floor'; floor.data.materials.append(mat_wood)",
+            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x, 4.5, 2.5))",
+            "wall = bpy.context.active_object; wall.name = 'Back_Wall'; wall.scale = (10.0, 0.2, 5.0); wall.data.materials.append(mat_wall)",
+            "",
+            "# Centerpiece / Fireplace",
+            "mat_stone = create_material('Stone_Mat', color=(0.82, 0.80, 0.76, 1.0), roughness=0.45)",
+            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x, 4.2, 1.2))",
+            "fp = bpy.context.active_object; fp.name = 'Center_Fireplace'; fp.scale = (3.0, 0.6, 2.4); fp.data.materials.append(mat_stone)",
+            "bpy.ops.object.light_add(type='POINT', location=(offset_x, 4.0, 0.8))",
+            "fire_light = bpy.context.active_object; fire_light.name = 'Fire_Glow'; fire_light.data.color = (1.0, 0.45, 0.1); fire_light.data.energy = 90.0",
+            "",
+            "# Seating & Furniture",
+            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x - 1.6, 1.8, 0.5))",
+            "c1 = bpy.context.active_object; c1.name = 'Armchair_Left'; c1.scale = (1.0, 1.0, 0.9); c1.rotation_euler = (0, 0, math.radians(30)); c1.data.materials.append(mat_accent)",
+            "bpy.ops.mesh.primitive_cube_add(size=1, location=(offset_x + 1.6, 1.8, 0.5))",
+            "c2 = bpy.context.active_object; c2.name = 'Armchair_Right'; c2.scale = (1.0, 1.0, 0.9); c2.rotation_euler = (0, 0, math.radians(-30)); c2.data.materials.append(mat_accent)",
+            "bpy.ops.mesh.primitive_cylinder_add(radius=0.6, depth=0.45, location=(offset_x, 1.8, 0.22))",
+            "tbl = bpy.context.active_object; tbl.name = 'Coffee_Table'; tbl.data.materials.append(mat_wood)",
+            "",
+            "# Production Gear (Camera & Key Light)",
+            "mat_black = create_material('Gear_Black_Mat', color=(0.04, 0.04, 0.04, 1.0), roughness=0.3, metallic=0.8)",
+            "bpy.ops.mesh.primitive_cylinder_add(radius=0.06, depth=1.5, location=(offset_x, -2.5, 0.75))",
+            "tripod = bpy.context.active_object; tripod.name = 'Camera_Stand'; tripod.data.materials.append(mat_black)",
+            "bpy.ops.object.light_add(type='SPOT', location=(offset_x - 3.0, -1.0, 2.6))",
+            "key_light = bpy.context.active_object; key_light.name = 'Key_Spotlight'; key_light.data.energy = 250.0; key_light.data.color = (1.0, 0.95, 0.9)",
+        ])
+        explanation = "Created a procedural film set room composition with warm hearth, seating area, and studio lighting."
 
     else:
-        # Default fallback: Low-poly landscape / abstraction
+        # Generic abstract geometry builder tailored to prompt
         code_lines.extend([
-            "# Abstract Procedural Geometry",
-            "bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=2, location=(0, 0, 2))",
-            "ico = bpy.context.active_object",
-            "ico.name = 'Imperal_3D_Object'",
-            "",
-            "# Add Subdivision & Wireframe Modifiers",
-            "mod_sub = ico.modifiers.new(name='Subsurf', type='SUBSURF')",
-            "mod_sub.levels = 1",
-            "",
-            "# Create emissive material",
-            "mat = bpy.data.materials.new(name='Emissive_Mat')",
-            "mat.use_nodes = True",
-            "nodes = mat.node_tree.nodes",
-            "bsdf = nodes.get('Principled BSDF')",
-            "if bsdf:",
-            "    bsdf.inputs['Base Color'].default_value = (0.8, 0.2, 0.8, 1.0)",
-            "ico.data.materials.append(mat)",
+            "# Procedural Geometric Composition",
+            "mat = create_material('Composition_Mat', color=(0.85, 0.35, 0.15, 1.0), metallic=0.5, roughness=0.2)",
+            "bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=1.8, location=(offset_x, 0, 1.8))",
+            "geom = bpy.context.active_object",
+            "geom.name = 'Imperal_Geometry'",
+            "geom.data.materials.append(mat)",
+            "bpy.ops.object.shade_smooth()",
         ])
-        explanation = f"Generated 3D geometry matching: '{prompt}'."
+        explanation = f"Generated 3D geometry based on prompt: '{prompt}'."
 
-    # Add lighting & camera for full scene
-    if target_mode == "new_scene":
+    # Full studio lighting & camera for new scenes
+    if target_mode == "new_scene" and not is_beside:
         code_lines.extend([
             "",
             "# Studio Lighting & Camera",
-            "bpy.ops.object.light_add(type='SUN', location=(5, 5, 10))",
-            "sun = bpy.context.active_object",
-            "sun.data.energy = 3.0",
-            "",
-            "bpy.ops.object.camera_add(location=(7, -7, 5), rotation=(math.radians(60), 0, math.radians(45)))",
-            "cam = bpy.context.active_object",
+            "bpy.ops.object.light_add(type='SUN', location=(offset_x + 5, -5, 8))",
+            "sun = bpy.context.active_object; sun.name = 'Sun_Key'; sun.data.energy = 3.5",
+            "bpy.ops.object.camera_add(location=(offset_x + 6, -7, 4.5), rotation=(math.radians(65), 0, math.radians(40)))",
+            "cam = bpy.context.active_object; cam.name = 'Main_Camera'",
             "bpy.context.scene.camera = cam",
         ])
 
